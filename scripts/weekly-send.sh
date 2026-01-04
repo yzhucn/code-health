@@ -1,0 +1,22 @@
+#!/bin/bash
+# 每周钉钉推送任务：推送上周周报到钉钉
+# 执行时间：每周六8:00准时
+
+# 自动检测项目根目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+LOG_FILE="$PROJECT_ROOT/reports/weekly-send.log"
+
+echo "======================================" | tee -a $LOG_FILE
+echo "$(date '+%Y-%m-%d %H:%M:%S') - 开始推送周报到钉钉" | tee -a $LOG_FILE
+
+# 推送到钉钉
+if [ -f "$SCRIPT_DIR/send-to-dingtalk-weekly.sh" ]; then
+    $SCRIPT_DIR/send-to-dingtalk-weekly.sh >> $LOG_FILE 2>&1
+    echo "   ✅ 周报已发送到钉钉" | tee -a $LOG_FILE
+else
+    echo "   ⚠️  钉钉周报脚本不存在" | tee -a $LOG_FILE
+fi
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') - 周报推送完成" | tee -a $LOG_FILE
+echo "======================================" | tee -a $LOG_FILE

@@ -1,0 +1,12 @@
+# Code Health Monitor - Python Dependencies
+
+# YAML configuration file parsing
+PyYAML>=6.0
+
+# Markdown processing
+markdown>=3.5.0
+
+# Optional: Advanced features
+# gitpython>=3.1.40          # Git operations library (optional, currently using subprocess)
+# matplotlib>=3.8.0          # Chart generation (optional, for visualization)
+# pandas>=2.1.0              # Data analysis (optional, for deep analysis)

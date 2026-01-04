@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+.cache/
+
+# Configuration files (keep example, ignore actual config)
+config.yaml
+config-ecs.yaml
+
+# Repository list (contains private repo URLs)
+repos-list.txt
+
+# Reports (generated files)
+reports/daily/*.md
+reports/daily/*.html
+reports/weekly/*.md
+reports/weekly/*.html
+reports/index.html
+reports/*.log
+
+# Dashboard (generated files)
+dashboard/*.html
+
+# Local deployment scripts
+deploy-to-ecs.sh
+deploy-to-ecs-auto.sh
+deploy-nginx-fix.sh
+fix-nginx.sh
+update-repos-config.sh
+
+# Backup files
+*.bak
+*.backup
+
+# Temporary repos directory
+repos/

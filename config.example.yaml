@@ -1,0 +1,194 @@
+# 代码健康监控配置文件模板
+# 使用说明：
+# 1. 复制此文件为 config.yaml
+# 2. 根据你的实际情况修改配置
+# 3. config.yaml 不会被提交到 git（已在 .gitignore 中忽略）
+
+# 项目基础配置
+project:
+  # 项目名称（用于钉钉/飞书推送消息中显示）
+  name: "代码健康监控平台"
+  # 可选：自定义为你的项目名称，例如 "公司代码管理平台"、"MyCompany代码监控系统"
+
+# Git 仓库配置
+repositories:
+  # 示例：Java 项目
+  - path: /path/to/your/repo1
+    name: your-backend
+    type: java           # 支持: java, python, vue, flutter
+    main_branch: main    # 主分支名称
+
+  # 示例：Python 项目
+  - path: /path/to/your/repo2
+    name: your-service
+    type: python
+    main_branch: dev
+
+  # 示例：Vue 前端项目
+  - path: /path/to/your/repo3
+    name: your-frontend
+    type: vue
+    main_branch: master
+
+# 风险阈值配置
+thresholds:
+  # 提交相关
+  large_commit: 500              # 大提交阈值（行）
+  tiny_commit: 10                # 微小提交阈值（行）
+
+  # 震荡检测
+  churn_days: 3                  # 震荡检测天数
+  churn_count: 5                 # 震荡检测次数（N天内修改N次）
+  churn_rate_warning: 10         # 震荡率警告阈值（%）
+  churn_rate_danger: 30          # 震荡率危险阈值（%）
+
+  # 返工检测
+  rework_add_days: 7             # 返工检测：代码新增后N天内
+  rework_delete_days: 3          # 返工检测：被删除视为返工
+  rework_rate_warning: 15        # 返工率警告阈值（%）
+  rework_rate_danger: 30         # 返工率危险阈值（%）
+
+  # 高危文件检测
+  hotspot_days: 7                # 热点文件统计天数
+  hotspot_count: 10              # 热点修改次数阈值
+  large_file: 1000               # 大文件行数阈值
+  complex_methods_java: 20       # Java 复杂方法数阈值
+  complex_functions_python: 15   # Python 复杂函数数阈值
+  complex_lines_vue: 500         # Vue 组件复杂度行数阈值
+  multi_author_count: 3          # 多人协作文件阈值
+  orphan_days: 90                # 孤立文件天数阈值
+
+  # 健康评分
+  health_score_excellent: 80     # 优秀分数线
+  health_score_good: 60          # 良好分数线
+  health_score_warning: 40       # 警告分数线
+
+# 工作时间配置
+working_hours:
+  normal_start: "09:00"          # 正常工作开始时间
+  normal_end: "18:00"            # 正常工作结束时间
+  overtime_start: "18:00"        # 加班开始时间
+  overtime_end: "21:00"          # 加班结束时间
+  late_night_start: "22:00"      # 深夜开始时间
+  late_night_end: "06:00"        # 深夜结束时间
+  weekend_work_warning: true     # 是否警告周末工作
+
+# 通知配置
+notification:
+  # Email 通知
+  email:
+    enabled: false
+    smtp_server: smtp.example.com
+    smtp_port: 587
+    smtp_user: devops@example.com
+    smtp_password: YOUR_PASSWORD
+    from: devops@example.com
+    to:
+      - manager@example.com
+      - tech-lead@example.com
+    subject_prefix: "[代码健康]"
+
+  # 飞书通知
+  feishu:
+    enabled: false
+    webhook: https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK_ID
+
+  # 钉钉通知
+  dingtalk:
+    enabled: false
+    webhook: https://oapi.dingtalk.com/robot/send?access_token=YOUR_ACCESS_TOKEN
+    secret: YOUR_SECRET_KEY
+
+  # 本地文件
+  local:
+    enabled: true
+    daily_dir: ./reports/daily     # 相对路径或绝对路径
+    weekly_dir: ./reports/weekly
+
+# 分析配置
+analysis:
+  # 是否分析所有分支（false只分析main_branch）
+  all_branches: true
+
+  # 排除的文件模式
+  exclude_patterns:
+    - "*.md"
+    - "*.txt"
+    - "*.json"
+    - "*.xml"
+    - "*.yaml"
+    - "*.yml"
+    - "package-lock.json"
+    - "pom.xml"
+    - ".gitignore"
+    - "LICENSE"
+
+  # 排除的目录
+  exclude_dirs:
+    - node_modules
+    - .git
+    - .idea
+    - __pycache__
+    - target
+    - build
+    - dist
+    - venv
+    - .venv
+
+  # 是否计算代码复杂度（需要额外工具）
+  calculate_complexity: false
+
+  # 历史数据保留天数
+  history_retention_days: 90
+
+# 报告配置
+report:
+  # 日报配置
+  daily:
+    enabled: true
+    schedule: "18:00"            # 生成时间
+    include_sections:
+      - basic_metrics
+      - code_changes
+      - risk_alerts
+      - health_score
+
+  # 周报配置
+  weekly:
+    enabled: true
+    schedule: "Fri 17:00"        # 生成时间（周五下午5点）
+    include_sections:
+      - productivity
+      - leaderboard
+      - high_risk_files
+      - team_health
+      - quality_trends
+      - recommendations
+
+  # 月报配置
+  monthly:
+    enabled: false
+    schedule: "Last_Day 17:00"   # 每月最后一天
+
+# 开发者别名映射（统一不同邮箱的同一作者）
+author_aliases:
+  "张三":
+    - zhangsan@company.com
+    - zhang.san@gmail.com
+  "李四":
+    - lisi@company.com
+
+# 团队信息
+team:
+  name: 开发团队
+  members:
+    - name: 张三
+      role: 后端开发
+      email: zhangsan@company.com
+    - name: 李四
+      role: 前端开发
+      email: lisi@company.com
+
+# Web访问配置
+web:
+  base_url: "http://localhost:8080"  # Web 访问地址（用于钉钉/飞书链接）
