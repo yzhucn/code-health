@@ -27,11 +27,7 @@ Code Health Monitor 是一个轻量级的代码质量和团队效能自动化监
 
 ### 📱 钉钉日报推送效果
 
-<table>
-<tr>
-<td width="50%">
-
-**消息预览**
+系统会自动将每日健康监控报告推送到钉钉群聊，格式如下：
 
 ```
 📊 代码管理 - 每日健康监控
@@ -61,74 +57,12 @@ Code Health Monitor 是一个轻量级的代码质量和团队效能自动化监
 📊 查看可视化仪表盘
 ```
 
-</td>
-<td width="50%">
-
-**截图示例**
-
-<!--
-TODO: 添加钉钉推送截图
-建议截图内容：钉钉群聊中的机器人消息
-建议尺寸：宽度 400-600px
-文件路径：docs/images/dingtalk-daily.png
-
-![钉钉日报推送](docs/images/dingtalk-daily.png)
--->
-
-*💡 待添加实际截图*
-
-</td>
-</tr>
-</table>
-
 ### 📊 可视化仪表盘
 
-<table>
-<tr>
-<td width="33%">
-
-**健康评分趋势**
-
-<!--
-TODO: 添加仪表盘截图
-文件路径：docs/images/dashboard-health.png
-
-![健康评分趋势](docs/images/dashboard-health.png)
--->
-
-*💡 待添加实际截图*
-
-</td>
-<td width="33%">
-
-**代码变更热力图**
-
-<!--
-TODO: 添加仪表盘截图
-文件路径：docs/images/dashboard-heatmap.png
-
-![代码变更热力图](docs/images/dashboard-heatmap.png)
--->
-
-*💡 待添加实际截图*
-
-</td>
-<td width="33%">
-
-**风险指标统计**
-
-<!--
-TODO: 添加仪表盘截图
-文件路径：docs/images/dashboard-risks.png
-
-![风险指标](docs/images/dashboard-risks.png)
--->
-
-*💡 待添加实际截图*
-
-</td>
-</tr>
-</table>
+通过 Web 界面可以查看：
+- **健康评分趋势**：多时间范围（7/14/30/60/90天）的评分变化
+- **代码变更热力图**：直观展示代码活跃度分布
+- **风险指标统计**：震荡率、返工率等关键指标的图表展示
 
 ### 📄 Markdown 日报示例
 
@@ -186,35 +120,6 @@ TODO: 添加仪表盘截图
 ```
 
 </details>
-
-### 📸 如何添加截图（可选）
-
-如果你想添加实际的效果截图，请按以下步骤操作：
-
-1. **创建图片目录**：
-   ```bash
-   mkdir -p docs/images
-   ```
-
-2. **截取以下内容**（注意去除敏感信息）：
-   - 钉钉群聊中的机器人消息 → `docs/images/dingtalk-daily.png`
-   - 浏览器中打开的仪表盘 → `docs/images/dashboard-*.png`
-   - Markdown 日报的 HTML 渲染效果 → `docs/images/report-html.png`
-
-3. **去除敏感信息**：
-   - 打码或模糊处理：真实仓库名、开发者姓名、IP地址
-   - 使用示例数据替换：如将真实仓库名改为"my-backend"
-
-4. **取消注释 README 中的图片引用**：
-   - 删除 `<!-- ` 和 ` -->` 标记
-   - 删除 `*💡 待添加实际截图*` 占位文本
-
-5. **提交图片**：
-   ```bash
-   git add docs/images/*.png
-   git commit -m "docs: 添加效果展示截图"
-   git push
-   ```
 
 ## 核心功能
 
