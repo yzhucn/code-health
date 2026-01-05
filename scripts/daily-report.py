@@ -376,37 +376,73 @@ class DailyReportGenerator:
                     })
 
         if late_night_commits or weekend_commits_list or overtime_commits:
+            # 风险指标说明
+            lines.append("**风险指标说明**:")
+            lines.append("- ⏰ 加班提交: 18:00-21:00提交，可能排期紧张")
+            lines.append("- 🌙 深夜提交: 22:00-06:00提交，影响健康和代码质量")
+            lines.append("- 📅 周末工作: 周六/周日提交，工作生活失衡")
+            lines.append("")
+
             # 加班提交统计
             if overtime_commits:
-                lines.append(f"**加班提交** (18:00-21:00): {len(overtime_commits)} 次")
+                lines.append(f"#### ⏰ 加班提交: {len(overtime_commits)} 次")
+                lines.append("")
+                lines.append("**时段**: 18:00-21:00 (晚餐时间后)")
+                lines.append("**影响**: 可能排期较紧，需关注项目进度")
+                lines.append("")
                 author_counts = defaultdict(int)
                 for c in overtime_commits:
                     author_counts[c['author']] += 1
                 top_authors = sorted(author_counts.items(), key=lambda x: x[1], reverse=True)
-                lines.append(f"- {', '.join([f'{a}({c}次)' for a, c in top_authors[:3]])}")
+                lines.append(f"**涉及人员**: {', '.join([f'{a}({c}次)' for a, c in top_authors[:3]])}")
+                lines.append("")
+                lines.append("**建议**:")
+                lines.append("- 评估排期是否合理，是否需要调整")
+                lines.append("- 关注团队工作负荷，避免持续加班")
+                lines.append("- 优化任务分配，提高开发效率")
                 lines.append("")
 
             # 深夜提交统计
             if late_night_commits:
-                lines.append(f"**深夜提交** (22:00-06:00): {len(late_night_commits)} 次")
+                lines.append(f"#### 🌙 深夜提交: {len(late_night_commits)} 次")
+                lines.append("")
+                lines.append("**时段**: 22:00-06:00 (应该休息的时间)")
+                lines.append("**影响**: 严重影响健康和睡眠，可能导致代码质量下降")
+                lines.append("")
                 author_counts = defaultdict(int)
                 for c in late_night_commits:
                     author_counts[c['author']] += 1
                 top_authors = sorted(author_counts.items(), key=lambda x: x[1], reverse=True)
-                lines.append(f"- {', '.join([f'{a}({c}次)' for a, c in top_authors[:3]])}")
+                lines.append(f"**高频人员**: {', '.join([f'{a}({c}次)' for a, c in top_authors[:3]])}")
+                lines.append("")
+                lines.append("**健康提醒**:")
+                lines.append("- 🚨 **强烈建议**: 保证充足睡眠，避免深夜工作")
+                lines.append("- 深夜工作容易出现bug，建议第二天review")
+                lines.append("- 如果是紧急修复，需要后续补充测试")
+                lines.append("- 持续深夜工作请及时与管理层沟通")
                 lines.append("")
 
             # 周末工作统计
             if weekend_commits_list:
-                lines.append(f"**周末工作**: {len(weekend_commits_list)} 次")
+                lines.append(f"#### 📅 周末工作: {len(weekend_commits_list)} 次")
+                lines.append("")
+                lines.append("**时段**: 周六/周日")
+                lines.append("**影响**: 工作生活失衡，长期影响团队士气")
+                lines.append("")
                 author_counts = defaultdict(int)
                 for c in weekend_commits_list:
                     author_counts[c['author']] += 1
                 top_authors = sorted(author_counts.items(), key=lambda x: x[1], reverse=True)
-                lines.append(f"- {', '.join([f'{a}({c}次)' for a, c in top_authors[:3]])}")
+                lines.append(f"**参与人员**: {', '.join([f'{a}({c}次)' for a, c in top_authors[:3]])}")
+                lines.append("")
+                lines.append("**建议**:")
+                lines.append("- 合理安排工作，避免周末加班成为常态")
+                lines.append("- 如有紧急情况，建议后续调休")
+                lines.append("- 评估是否需要增加人力或延长排期")
                 lines.append("")
 
-            lines.append("⚠️ **建议**: 关注团队工作压力，评估排期合理性")
+            # 整体建议
+            lines.append("**整体建议**: 关注团队工作压力，评估排期合理性，保持工作生活平衡")
         else:
             lines.append("✅ 工作时间正常，无加班/深夜/周末提交")
 
@@ -481,11 +517,80 @@ class DailyReportGenerator:
             ""
         ]
 
+        # 评分说明
+        lines.append("**评分说明**:")
+        lines.append("- 🟢 优秀 (≥80分): 代码质量高，工作时间健康")
+        lines.append("- 🟡 良好 (60-79分): 有改进空间，建议关注扣分项")
+        lines.append("- 🟠 警告 (40-59分): 存在明显问题，需及时改进")
+        lines.append("- 🔴 危险 (<40分): 严重问题，需要立即处理")
+        lines.append("")
+
+        # 评分构成表格
+        lines.append("**评分构成**:")
+        lines.append("")
+        lines.append("| 评分维度 | 当前状态 | 影响 | 说明 |")
+        lines.append("|---------|---------|------|------|")
+
+        # 大提交
+        if large_commits > 0:
+            lines.append(f"| 大提交次数 | {large_commits}次 | -{large_commits * 5}分 | 单次变更>500行，建议拆分 |")
+        else:
+            lines.append(f"| 大提交次数 | 0次 | +0分 | ✅ 提交粒度适中 |")
+
+        # 震荡率
+        if avg_churn_rate > 30:
+            lines.append(f"| 代码震荡率 | {avg_churn_rate:.1f}% | -20分 | 频繁修改同一文件，代码不稳定 |")
+        elif avg_churn_rate > 10:
+            lines.append(f"| 代码震荡率 | {avg_churn_rate:.1f}% | -10分 | 有一定震荡，建议优化设计 |")
+        else:
+            lines.append(f"| 代码震荡率 | {avg_churn_rate:.1f}% | +0分 | ✅ 代码稳定 |")
+
+        # 返工率
+        if avg_rework_rate > 30:
+            lines.append(f"| 代码返工率 | {avg_rework_rate:.1f}% | -15分 | 大量返工，需求或设计有问题 |")
+        elif avg_rework_rate > 15:
+            lines.append(f"| 代码返工率 | {avg_rework_rate:.1f}% | -8分 | 有返工现象，建议评审机制 |")
+        else:
+            lines.append(f"| 代码返工率 | {avg_rework_rate:.1f}% | +0分 | ✅ 返工率低 |")
+
+        # 提交信息质量
+        if message_quality < 60:
+            lines.append(f"| 提交信息质量 | {message_quality:.0f}% | -10分 | 提交信息不规范 |")
+        else:
+            lines.append(f"| 提交信息质量 | {message_quality:.0f}% | +0分 | ✅ 提交信息良好 |")
+
+        # 工作时间
+        abnormal_commits = late_night + weekend
+        if abnormal_commits > 0:
+            lines.append(f"| 工作时间健康 | {abnormal_commits}次异常 | -{abnormal_commits * 2}分 | 深夜/周末工作，注意休息 |")
+        else:
+            lines.append(f"| 工作时间健康 | 正常 | +0分 | ✅ 工作时间健康 |")
+
+        # 高危文件
+        if high_risk_files > 0:
+            deduction_hr = min(high_risk_files * 3, 15)
+            lines.append(f"| 高危文件数量 | {high_risk_files}个 | -{deduction_hr}分 | 存在高复杂度/高修改频次文件 |")
+        else:
+            lines.append(f"| 高危文件数量 | 0个 | +0分 | ✅ 无高危文件 |")
+
+        lines.append("")
+
+        # 如果有扣分，显示改进建议
         if score < 100:
-            lines.append("**扣分项**:")
+            lines.append("**改进建议**:")
             lines.append("")
-            for deduction in deductions:
-                lines.append(f"- {deduction}")
+            if large_commits > 0:
+                lines.append("- 📦 **减少大提交**: 将大型变更拆分为多个小提交，每次只做一件事")
+            if avg_churn_rate > 10:
+                lines.append("- 🔄 **降低震荡率**: 优化代码设计，减少频繁修改同一文件")
+            if avg_rework_rate > 15:
+                lines.append("- ⚙️ **减少返工**: 加强需求评审和设计评审，降低返工率")
+            if message_quality < 60:
+                lines.append("- 📝 **规范提交信息**: 使用有意义的提交信息，说明修改原因")
+            if abnormal_commits > 0:
+                lines.append("- 😴 **注意工作时间**: 避免深夜和周末工作，保持工作生活平衡")
+            if high_risk_files > 0:
+                lines.append("- 🚨 **重构高危文件**: 优先处理高复杂度或高修改频次的文件")
             lines.append("")
 
         # 趋势对比（简化版：与昨天对比）
