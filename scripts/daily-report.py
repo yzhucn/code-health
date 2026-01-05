@@ -121,6 +121,7 @@ class DailyReportGenerator:
         total_files = 0
         active_repos = 0
         active_authors = set()
+        author_commit_counts = defaultdict(int)
 
         for analyzer in self.analyzers:
             commits = analyzer['git'].get_commits(self.since_time, self.until_time)
@@ -129,6 +130,7 @@ class DailyReportGenerator:
                 active_repos += 1
                 for commit in commits:
                     active_authors.add(commit['author'])
+                    author_commit_counts[commit['author']] += 1
                     total_files += len(commit['files'])
 
         lines = [
@@ -144,7 +146,12 @@ class DailyReportGenerator:
         ]
 
         if active_authors:
-            lines.append(f"**活跃开发者**: {', '.join(sorted(active_authors))}")
+            lines.append(f"**活跃开发者详情**:")
+            lines.append("")
+            # 按提交次数排序
+            sorted_authors = sorted(author_commit_counts.items(), key=lambda x: x[1], reverse=True)
+            for author, count in sorted_authors:
+                lines.append(f"- {author} ({count} commits)")
             lines.append("")
 
         return '\n'.join(lines)

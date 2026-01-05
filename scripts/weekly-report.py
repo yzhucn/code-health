@@ -70,6 +70,7 @@ class WeeklyReportGenerator:
     def _init_analyzers(self) -> list:
         """初始化所有仓库的分析器"""
         analyzers = []
+        missing_repos = []
         for repo in self.config['repositories']:
             if os.path.exists(repo['path']):
                 git_analyzer = GitAnalyzer(repo['path'])
@@ -92,6 +93,15 @@ class WeeklyReportGenerator:
                         self.config['thresholds']
                     )
                 })
+            else:
+                missing_repos.append(f"{repo['name']} ({repo['path']})")
+
+        if missing_repos:
+            print(f"⚠️  警告: 以下仓库路径不存在，将跳过统计:")
+            for repo in missing_repos:
+                print(f"   - {repo}")
+
+        print(f"✅ 成功加载 {len(analyzers)}/{len(self.config['repositories'])} 个仓库")
         return analyzers
 
     def generate(self) -> str:
@@ -828,7 +838,9 @@ class WeeklyReportGenerator:
 
         if author_commits:
             top_contributor = max(author_commits.items(), key=lambda x: x[1])
-            highlights.append(f"- 🏆 **最活跃开发者**: {top_contributor[0]} ({top_contributor[1]} 次提交)")
+            highlights.append(f"- 🏆 **TOP 1 贡献者**: {top_contributor[0]} ({top_contributor[1]} 次提交)")
+        else:
+            highlights.append("- 本周暂无提交记录")
 
         # 代码质量亮点
         if message_quality >= 80:
