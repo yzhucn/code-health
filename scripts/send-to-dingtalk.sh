@@ -33,7 +33,8 @@ SCORE=$(grep "综合评分:" "$REPORT_FILE" | sed -E 's/.*: ([0-9]+\.[0-9]+) .*/
 # 提取风险信息
 CHURN_RATE=$(grep "震荡率\*\*:" "$REPORT_FILE" | sed -E 's/.*: ([0-9]+\.[0-9]+).*/\1/' || echo "0")
 REWORK_RATE=$(grep "返工率\*\*:" "$REPORT_FILE" | sed -E 's/.*: ([0-9]+\.[0-9]+).*/\1/' || echo "0")
-OVERTIME=$(grep "加班提交" "$REPORT_FILE" | sed -E 's/.*: ([0-9]+) 次.*/\1/' | head -1)
+# 精确匹配包含数字的加班提交行，避免匹配到说明文字
+OVERTIME=$(grep -E "加班提交: [0-9]+ 次" "$REPORT_FILE" | sed -E 's/.*: ([0-9]+) 次.*/\1/' | head -1)
 [ -z "$OVERTIME" ] && OVERTIME="0"
 
 # 评分等级
