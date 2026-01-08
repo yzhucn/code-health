@@ -122,10 +122,10 @@ while IFS='|' read -r repo_name repo_url || [ -n "$repo_name" ]; do
         cd ..
 
         echo "  ✅ 克隆成功" | tee -a "$LOG_FILE"
-        ((SUCCESS_COUNT++))
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
     else
         echo "  ❌ 克隆失败" | tee -a "$LOG_FILE"
-        ((FAILED_COUNT++))
+        FAILED_COUNT=$((FAILED_COUNT + 1))
         FAILED_REPOS+=("$repo_name")
     fi
 done < "$REPOS_LIST_FILE"
