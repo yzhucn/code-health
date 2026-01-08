@@ -2,6 +2,7 @@
 # 归档老旧报告
 # 日报：30天前 -> reports/archive/daily/YYYY/MM/
 # 周报：12周前(84天) -> reports/archive/weekly/YYYY/
+# 月报：6个月前(180天) -> reports/archive/monthly/YYYY/
 
 # 自动检测项目根目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,6 +20,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - 开始归档任务" | tee -a "$LOG_FILE"
 # 计数器
 DAILY_COUNT=0
 WEEKLY_COUNT=0
+MONTHLY_COUNT=0
 
 # 归档30天前的日报
 echo "1️⃣ 归档30天前的日报..." | tee -a "$LOG_FILE"
@@ -78,9 +80,38 @@ else
     echo "   ⚠️  周报目录不存在" | tee -a "$LOG_FILE"
 fi
 
+# 归档6个月前的月报
+echo "3️⃣ 归档6个月前的月报..." | tee -a "$LOG_FILE"
+if [ -d "$PROJECT_ROOT/reports/monthly" ]; then
+    find "$PROJECT_ROOT/reports/monthly" -name "*.md" -mtime +180 2>/dev/null | while read file; do
+        if [ -f "$file" ]; then
+            filename=$(basename "$file")
+
+            # 从文件名提取年份 (格式: YYYY-MM.md)
+            year=${filename:0:4}
+
+            # 创建归档目录
+            archive_dir="$ARCHIVE_ROOT/monthly/$year"
+            mkdir -p "$archive_dir"
+
+            # 移动文件
+            if mv "$file" "$archive_dir/" 2>/dev/null; then
+                echo "   ✅ 已归档: $filename -> monthly/$year/" | tee -a "$LOG_FILE"
+                MONTHLY_COUNT=$((MONTHLY_COUNT + 1))
+            else
+                echo "   ⚠️  归档失败: $filename" | tee -a "$LOG_FILE"
+            fi
+        fi
+    done
+    echo "   📊 月报归档数量: $MONTHLY_COUNT" | tee -a "$LOG_FILE"
+else
+    echo "   ⚠️  月报目录不存在" | tee -a "$LOG_FILE"
+fi
+
 # 总结
 echo "✅ 归档任务完成" | tee -a "$LOG_FILE"
 echo "   - 日报: $DAILY_COUNT 个文件" | tee -a "$LOG_FILE"
 echo "   - 周报: $WEEKLY_COUNT 个文件" | tee -a "$LOG_FILE"
+echo "   - 月报: $MONTHLY_COUNT 个文件" | tee -a "$LOG_FILE"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - 归档任务结束" | tee -a "$LOG_FILE"
 echo "======================================" | tee -a "$LOG_FILE"
