@@ -497,6 +497,7 @@ def generate_dashboard_html(data, start_date, end_date, days_count, project_star
                 <h3>🔗 快速导航</h3>
                 <div class="nav-links">
                     <a href="/reports/index.html" class="nav-btn">📋 报告中心</a>
+                    <a href="/dashboard/history.html" class="nav-btn">📜 历史查询</a>
                 </div>
             </div>
         </div>
