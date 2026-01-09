@@ -48,7 +48,7 @@ def get_date_range(start_date_str=None, end_date_str=None, days=None):
         return start, end, 30
 
 
-def generate_dashboard_html(data, start_date, end_date, days_count, project_start_date=None, project_days=None):
+def generate_dashboard_html(data, start_date, end_date, days_count, project_start_date=None, project_days=None, output_filename=None):
     """生成仪表盘HTML
 
     Args:
@@ -58,6 +58,7 @@ def generate_dashboard_html(data, start_date, end_date, days_count, project_star
         days_count: 统计天数
         project_start_date: 项目最早提交日期
         project_days: 项目运行总天数
+        output_filename: 输出文件名（用于判断当前选中的时间范围）
     """
 
     # 提取数据
@@ -121,11 +122,19 @@ def generate_dashboard_html(data, start_date, end_date, days_count, project_star
     # 预设时间范围（始终显示所有选项）
     preset_ranges = [7, 14, 30, 60, 90]
     for days in preset_ranges:
-        is_current = (days_count == days)
+        # 判断是否是当前页面：匹配文件名，而不是天数
         url = 'index.html' if days == 7 else f'index-{days}d.html'
+        is_current = (output_filename == url) if output_filename else False
+
+        # 动态生成标签：如果目标天数超过项目天数，标注实际天数
+        if project_days and days > project_days:
+            label = f'最近{days}天 (实际{project_days}天)'
+        else:
+            label = f'最近{days}天'
+
         range_options.append({
             'value': url,
-            'label': f'最近{days}天',
+            'label': label,
             'selected': is_current
         })
 
@@ -899,7 +908,7 @@ def main():
                 print(f"Error processing commit: {e}")
 
     # 生成HTML
-    html = generate_dashboard_html(data, start_date, end_date, days_count, project_start_date, project_days)
+    html = generate_dashboard_html(data, start_date, end_date, days_count, project_start_date, project_days, output_filename)
 
     # 保存文件
     output_dir = os.path.join(project_root, 'dashboard')
