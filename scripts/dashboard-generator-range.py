@@ -793,29 +793,6 @@ def main():
         output_filename = "index.html"
 
     print(f"📊 正在生成仪表盘...")
-    print(f"   起始日期: {start_date.strftime('%Y-%m-%d')}")
-    print(f"   结束日期: {end_date.strftime('%Y-%m-%d')}")
-    print(f"   统计天数: {days_count}天")
-
-    # 加载配置
-    config = load_config(config_path)
-
-    # 收集数据
-    data = {
-        'dates': [],
-        'commits_by_date': defaultdict(int),
-        'lines_by_date': defaultdict(lambda: {'added': 0, 'deleted': 0}),
-        'authors': defaultdict(lambda: {'commits': 0, 'added': 0, 'deleted': 0}),
-        'repos': defaultdict(lambda: {'commits': 0, 'added': 0, 'deleted': 0}),
-        'time_distribution': defaultdict(int),
-        'all_commits': []
-    }
-
-    # 生成日期列表
-    current_date = start_date
-    while current_date <= end_date:
-        data['dates'].append(current_date.strftime('%Y-%m-%d'))
-        current_date += timedelta(days=1)
 
     # 计算项目最早日期和运行天数（基于第一份日报）
     project_start_date = None
@@ -839,6 +816,41 @@ def main():
 
     if not project_start_date:
         print(f"   ⚠️  未找到日报，使用默认值")
+
+    # 应用日期边界限制：起始日期不能早于项目起始日期
+    if project_start_date and start_date.date() < project_start_date:
+        original_start = start_date.strftime('%Y-%m-%d')
+        original_days = days_count
+        print(f"   ⚠️  计算的起始日期 {original_start} 早于项目起始日期 {project_start_date.strftime('%Y-%m-%d')}")
+        print(f"   📌 将起始日期调整为项目起始日期")
+        start_date = datetime.combine(project_start_date, datetime.min.time())
+        days_count = (end_date.date() - start_date.date()).days + 1
+        print(f"   📊 原计划统计 {original_days} 天，实际统计 {days_count} 天")
+
+    # 显示最终的统计范围
+    print(f"   起始日期: {start_date.strftime('%Y-%m-%d')}")
+    print(f"   结束日期: {end_date.strftime('%Y-%m-%d')}")
+    print(f"   统计天数: {days_count}天")
+
+    # 加载配置
+    config = load_config(config_path)
+
+    # 收集数据
+    data = {
+        'dates': [],
+        'commits_by_date': defaultdict(int),
+        'lines_by_date': defaultdict(lambda: {'added': 0, 'deleted': 0}),
+        'authors': defaultdict(lambda: {'commits': 0, 'added': 0, 'deleted': 0}),
+        'repos': defaultdict(lambda: {'commits': 0, 'added': 0, 'deleted': 0}),
+        'time_distribution': defaultdict(int),
+        'all_commits': []
+    }
+
+    # 生成日期列表（使用调整后的起始日期）
+    current_date = start_date
+    while current_date <= end_date:
+        data['dates'].append(current_date.strftime('%Y-%m-%d'))
+        current_date += timedelta(days=1)
 
     # 收集所有仓库的提交（当前时间范围）
     since_time = start_date.strftime('%Y-%m-%d 00:00:00')
