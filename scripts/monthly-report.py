@@ -234,7 +234,7 @@ class MonthlyReportGenerator:
         # 按日统计
         daily_commits = defaultdict(int)
         for commit in all_commits:
-            date = commit['commit_date'][:10]  # YYYY-MM-DD
+            date = commit['date'][:10]  # YYYY-MM-DD
             daily_commits[date] += 1
 
         # 最活跃的一天
@@ -354,7 +354,7 @@ class MonthlyReportGenerator:
         })
 
         for commit in all_commits:
-            commit_date = datetime.strptime(commit['commit_date'][:10], '%Y-%m-%d')
+            commit_date = datetime.strptime(commit['date'][:10], '%Y-%m-%d')
             week_num = commit_date.isocalendar()[1]
             week_key = f"{commit_date.year}-W{week_num:02d}"
 
@@ -399,29 +399,15 @@ class MonthlyReportGenerator:
                     'repo': analyzer['name']
                 })
 
-        # 计算月度健康评分
+        # 计算月度健康评分 (简化版本)
         if all_commits:
-            # 使用每日的健康评分计算月度平均值
-            daily_scores = []
-            current = self.month_start
-            while current <= self.month_end:
-                date_str = current.strftime("%Y-%m-%d")
-                next_day = current + timedelta(days=1)
-                next_date_str = next_day.strftime("%Y-%m-%d")
+            # 使用提交质量和工作时间分布估算健康分
+            late_night = len([c for c in all_commits if is_late_night(c['date'], self.config)])
+            weekend = len([c for c in all_commits if is_weekend(c['date'])])
 
-                day_commits = [
-                    c for c in all_commits
-                    if date_str <= c['commit_date'][:10] < next_date_str
-                ]
-
-                if day_commits:
-                    calculator = HealthScoreCalculator(self.config['thresholds'])
-                    score = calculator.calculate(day_commits)
-                    daily_scores.append(score)
-
-                current = next_day
-
-            avg_score = sum(daily_scores) / len(daily_scores) if daily_scores else 0
+            # 简单评分：正常工作时间提交占比
+            risk_ratio = (late_night + weekend) / len(all_commits) if all_commits else 0
+            avg_score = max(60, 100 - risk_ratio * 50)  # 基础60分，风险越高扣分越多
         else:
             avg_score = 0
 
@@ -445,10 +431,10 @@ class MonthlyReportGenerator:
         weekend_hours = 0
 
         for commit in all_commits:
-            commit_dt = parse_iso_datetime(commit['commit_date'])
-            if is_weekend(commit_dt):
+            commit_dt = parse_iso_datetime(commit['date'])
+            if is_weekend(commit['date']):
                 weekend_hours += 1
-            elif is_late_night(commit_dt):
+            elif is_late_night(commit['date'], self.config):
                 late_night_hours += 1
             elif commit_dt.hour >= 18:
                 overtime_hours += 1
@@ -488,12 +474,12 @@ class MonthlyReportGenerator:
         large_commits = []
 
         for commit in all_commits:
-            commit_dt = parse_iso_datetime(commit['commit_date'])
+            commit_dt = parse_iso_datetime(commit['date'])
 
-            if is_late_night(commit_dt):
+            if is_late_night(commit['date'], self.config):
                 late_night_commits.append(commit)
 
-            if is_weekend(commit_dt):
+            if is_weekend(commit['date']):
                 weekend_commits.append(commit)
 
             if commit['lines_added'] + commit['lines_deleted'] > 500:
@@ -597,8 +583,8 @@ class MonthlyReportGenerator:
         # 计算一些关键指标
         total = len(all_commits)
         if total > 0:
-            late_night = len([c for c in all_commits if is_late_night(parse_iso_datetime(c['commit_date']))])
-            weekend = len([c for c in all_commits if is_weekend(parse_iso_datetime(c['commit_date']))])
+            late_night = len([c for c in all_commits if is_late_night(c['date'], self.config)])
+            weekend = len([c for c in all_commits if is_weekend(c['date'])])
             large = len([c for c in all_commits if c['lines_added'] + c['lines_deleted'] > 500])
 
             lines.append("### 🎯 行动计划")

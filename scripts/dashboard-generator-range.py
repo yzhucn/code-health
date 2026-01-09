@@ -8,6 +8,7 @@
 import os
 import sys
 import json
+import glob
 from datetime import datetime, timedelta
 from collections import defaultdict
 
@@ -97,6 +98,49 @@ def generate_dashboard_html(data, start_date, end_date, days_count):
         health_scores.append(max(0, min(100, score)))
 
     date_range_str = f"{start_date.strftime('%Y-%m-%d')} 至 {end_date.strftime('%Y-%m-%d')}"
+
+    # 动态查找最新的报告文件
+    reports_dir = os.path.join(os.path.dirname(script_dir), 'reports')
+
+    # 查找最新日报
+    daily_files = glob.glob(os.path.join(reports_dir, 'daily', '*.html'))
+    daily_files = [f for f in daily_files if not os.path.basename(f).startswith('example')]
+    if daily_files:
+        latest_daily = os.path.basename(sorted(daily_files)[-1]).replace('.html', '')
+    else:
+        latest_daily = None
+
+    # 查找最新周报
+    weekly_files = glob.glob(os.path.join(reports_dir, 'weekly', '*.html'))
+    weekly_files = [f for f in weekly_files if not os.path.basename(f).startswith('example')]
+    if weekly_files:
+        latest_weekly = os.path.basename(sorted(weekly_files)[-1]).replace('.html', '')
+    else:
+        latest_weekly = None
+
+    # 查找最新月报
+    monthly_files = glob.glob(os.path.join(reports_dir, 'monthly', '*.html'))
+    monthly_files = [f for f in monthly_files if not os.path.basename(f).startswith('example')]
+    if monthly_files:
+        latest_monthly = os.path.basename(sorted(monthly_files)[-1]).replace('.html', '')
+    else:
+        latest_monthly = None
+
+    # 生成报告链接 HTML
+    if latest_daily:
+        daily_link = f'<a href="/reports/daily/{latest_daily}.html" class="report-btn daily">📅 最新日报 ({latest_daily})</a>'
+    else:
+        daily_link = '<span class="report-btn daily disabled">📅 暂无日报</span>'
+
+    if latest_weekly:
+        weekly_link = f'<a href="/reports/weekly/{latest_weekly}.html" class="report-btn weekly">📊 最新周报 ({latest_weekly})</a>'
+    else:
+        weekly_link = '<span class="report-btn weekly disabled">📊 暂无周报</span>'
+
+    if latest_monthly:
+        monthly_link = f'<a href="/reports/monthly/{latest_monthly}.html" class="report-btn monthly">📈 最新月报 ({latest_monthly})</a>'
+    else:
+        monthly_link = '<span class="report-btn monthly disabled">📈 暂无月报</span>'
 
     html = f'''<!DOCTYPE html>
 <html lang="zh-CN">
@@ -213,6 +257,12 @@ def generate_dashboard_html(data, start_date, end_date, days_count):
             color: white;
         }}
 
+        .quick-ranges button.active {{
+            background: #667eea;
+            color: white;
+            font-weight: bold;
+        }}
+
         .stats-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -284,6 +334,76 @@ def generate_dashboard_html(data, start_date, end_date, days_count):
             height: 450px;
         }}
 
+        .quick-access {{
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }}
+
+        .quick-card {{
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }}
+
+        .quick-card h3 {{
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }}
+
+        .report-links, .nav-links {{
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }}
+
+        .report-btn, .nav-btn {{
+            display: inline-block;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.2s;
+        }}
+
+        .report-btn.daily {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }}
+
+        .report-btn.weekly {{
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }}
+
+        .report-btn.monthly {{
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }}
+
+        .nav-btn {{
+            background: #f8f9fa;
+            color: #333;
+            border: 1px solid #e0e0e0;
+        }}
+
+        .report-btn:hover, .nav-btn:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }}
+
+        .report-btn.disabled, .nav-btn.disabled {{
+            background: #e5e7eb;
+            color: #9ca3af;
+            cursor: not-allowed;
+            pointer-events: none;
+        }}
+
         .footer {{
             background: white;
             border-radius: 12px;
@@ -316,11 +436,11 @@ def generate_dashboard_html(data, start_date, end_date, days_count):
             <div class="date-selector">
                 <h3>📅 切换时间范围</h3>
                 <div class="quick-ranges">
-                    <button onclick="setRange(7)">最近7天</button>
-                    <button onclick="setRange(14)">最近14天</button>
-                    <button onclick="setRange(30)">最近30天</button>
-                    <button onclick="setRange(60)">最近60天</button>
-                    <button onclick="setRange(90)">最近90天</button>
+                    <button onclick="setRange(7)" class="{'active' if days_count == 7 else ''}">最近7天</button>
+                    <button onclick="setRange(14)" class="{'active' if days_count == 14 else ''}">最近14天</button>
+                    <button onclick="setRange(30)" class="{'active' if days_count == 30 else ''}">最近30天</button>
+                    <button onclick="setRange(60)" class="{'active' if days_count == 60 else ''}">最近60天</button>
+                    <button onclick="setRange(90)" class="{'active' if days_count == 90 else ''}">最近90天</button>
                 </div>
             </div>
         </div>
@@ -346,6 +466,24 @@ def generate_dashboard_html(data, start_date, end_date, days_count):
                 <div class="label">平均健康分</div>
                 <div class="value">{sum(health_scores) / len(health_scores) if health_scores else 0:.0f}</div>
                 <div class="trend">🟢 优秀</div>
+            </div>
+        </div>
+
+        <!-- 快速入口区域 -->
+        <div class="quick-access">
+            <div class="quick-card">
+                <h3>📄 最新报告</h3>
+                <div class="report-links">
+                    {daily_link}
+                    {weekly_link}
+                    {monthly_link}
+                </div>
+            </div>
+            <div class="quick-card">
+                <h3>🔗 快速导航</h3>
+                <div class="nav-links">
+                    <a href="/reports/index.html" class="nav-btn">📋 报告中心</a>
+                </div>
             </div>
         </div>
 
@@ -601,13 +739,7 @@ def generate_dashboard_html(data, start_date, end_date, days_count):
 
         // 时间范围切换功能
         function setRange(days) {{
-            let url;
-            if (days === 30) {{
-                url = 'index.html';
-            }} else {{
-                url = `index-${{days}}d.html`;
-            }}
-            window.location.href = url;
+            window.location.href = `index-${{days}}d.html`;
         }}
     </script>
 </body>
