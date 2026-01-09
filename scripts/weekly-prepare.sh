@@ -6,6 +6,8 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 LOG_FILE="$PROJECT_ROOT/reports/weekly-prepare.log"
+# 加载环境变量
+[ -f /etc/environment ] && source /etc/environment
 
 echo "======================================" | tee -a $LOG_FILE
 echo "$(date '+%Y-%m-%d %H:%M:%S') - 开始周报数据准备" | tee -a $LOG_FILE
@@ -39,8 +41,9 @@ python3 dashboard-generator-range.py 14 >> $LOG_FILE 2>&1
 python3 dashboard-generator-range.py 30 >> $LOG_FILE 2>&1
 python3 dashboard-generator-range.py 60 >> $LOG_FILE 2>&1
 python3 dashboard-generator-range.py 90 >> $LOG_FILE 2>&1
+python3 dashboard-generator-range.py all >> $LOG_FILE 2>&1
 chmod 644 "$PROJECT_ROOT"/dashboard/*.html >> $LOG_FILE 2>&1
-echo "   ✅ 仪表盘已更新（5个时间范围）" | tee -a $LOG_FILE
+echo "   ✅ 仪表盘已更新（6个时间范围 + 全周期）" | tee -a $LOG_FILE
 
 # 5. 清理代码（安全第一）
 echo "5️⃣ 清理代码仓库..." | tee -a $LOG_FILE

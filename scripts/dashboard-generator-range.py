@@ -118,19 +118,26 @@ def generate_dashboard_html(data, start_date, end_date, days_count, project_star
         'selected': False
     })
 
-    # 预设时间范围
+    # 预设时间范围（始终显示所有选项）
     preset_ranges = [7, 14, 30, 60, 90]
     for days in preset_ranges:
-        # 如果项目运行天数小于此范围，跳过
-        if project_days and days > project_days:
-            continue
-
         is_current = (days_count == days)
         url = 'index.html' if days == 7 else f'index-{days}d.html'
         range_options.append({
             'value': url,
             'label': f'最近{days}天',
             'selected': is_current
+        })
+
+    # 添加项目全周期选项
+    if project_days and project_start_date:
+        # 判断是否是全周期（从第一份日报到今天）
+        is_all = (project_days == days_count and
+                  start_date.date() == project_start_date)
+        range_options.append({
+            'value': 'index-all.html',
+            'label': f'📅 项目全周期 (自{project_start_date.strftime("%m/%d")}起，{project_days}天)',
+            'selected': is_all
         })
 
     # 生成下拉菜单选项HTML
@@ -760,10 +767,26 @@ def main():
         start_date, end_date, days_count = get_date_range(start_date_str, end_date_str)
         output_filename = f"index-{start_date_str}-to-{end_date_str}.html"
     elif len(sys.argv) >= 2:
-        # 最近N天模式
-        days = int(sys.argv[1])
-        start_date, end_date, days_count = get_date_range(days=days)
-        output_filename = f"index.html" if days == 7 else f"index-{days}d.html"
+        param = sys.argv[1]
+        if param == 'all':
+            # 项目全周期模式：从第一份日报到今天
+            reports_dir = os.path.join(project_root, 'reports', 'daily')
+            daily_files = sorted([f for f in glob.glob(os.path.join(reports_dir, '*.md'))
+                                 if not os.path.basename(f).startswith('example')])
+            if daily_files:
+                first_report_date = os.path.basename(daily_files[0]).replace('.md', '')
+                start_date = datetime.strptime(first_report_date, '%Y-%m-%d')
+                end_date = datetime.now()
+                days_count = (end_date.date() - start_date.date()).days + 1
+                output_filename = "index-all.html"
+            else:
+                print("⚠️  未找到日报，无法生成全周期dashboard")
+                return
+        else:
+            # 最近N天模式
+            days = int(param)
+            start_date, end_date, days_count = get_date_range(days=days)
+            output_filename = f"index.html" if days == 7 else f"index-{days}d.html"
     else:
         # 默认最近7天
         start_date, end_date, days_count = get_date_range(days=7)
@@ -794,26 +817,28 @@ def main():
         data['dates'].append(current_date.strftime('%Y-%m-%d'))
         current_date += timedelta(days=1)
 
-    # 计算项目最早日期和运行天数（基于所有历史提交）
+    # 计算项目最早日期和运行天数（基于第一份日报）
     project_start_date = None
     project_days = None
     print(f"📅 正在计算项目运行天数...")
-    for repo in config['repositories']:
-        if not os.path.exists(repo['path']):
-            continue
-        git_analyzer = GitAnalyzer(repo['path'])
-        # 获取所有历史提交（不限时间范围）
-        all_history_commits = git_analyzer.get_commits("2000-01-01 00:00:00", "2030-01-01 00:00:00", branch="all")
-        if all_history_commits:
-            earliest_commit = min(all_history_commits, key=lambda c: c['date'])
-            commit_date = parse_iso_datetime(earliest_commit['date']).date()
-            if project_start_date is None or commit_date < project_start_date:
-                project_start_date = commit_date
 
-    if project_start_date:
-        project_days = (datetime.now().date() - project_start_date).days + 1
-        print(f"   项目最早提交: {project_start_date}")
-        print(f"   项目运行天数: {project_days}天")
+    # 查找第一份日报的日期
+    reports_dir = os.path.join(os.path.dirname(script_dir), 'reports', 'daily')
+    if os.path.exists(reports_dir):
+        daily_files = sorted([f for f in glob.glob(os.path.join(reports_dir, '*.md'))
+                             if not os.path.basename(f).startswith('example')])
+        if daily_files:
+            first_report = os.path.basename(daily_files[0]).replace('.md', '')
+            try:
+                project_start_date = datetime.strptime(first_report, '%Y-%m-%d').date()
+                project_days = (datetime.now().date() - project_start_date).days + 1
+                print(f"   第一份日报: {project_start_date}")
+                print(f"   项目运行天数: {project_days}天（基于日报）")
+            except ValueError:
+                print(f"   ⚠️  无法解析日报日期: {first_report}")
+
+    if not project_start_date:
+        print(f"   ⚠️  未找到日报，使用默认值")
 
     # 收集所有仓库的提交（当前时间范围）
     since_time = start_date.strftime('%Y-%m-%d 00:00:00')
