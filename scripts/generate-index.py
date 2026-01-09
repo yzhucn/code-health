@@ -18,10 +18,22 @@ def generate_index():
     reports_dir = os.path.join(os.path.dirname(script_dir), 'reports')
     daily_dir = os.path.join(reports_dir, 'daily')
     weekly_dir = os.path.join(reports_dir, 'weekly')
+    monthly_dir = os.path.join(reports_dir, 'monthly')
 
-    # 获取所有日报（动态扫描所有年月）
+    # 确定当前年月和上月
+    now = datetime.now()
+    current_year_month = now.strftime('%Y-%m')  # 2026-01
+    if now.month == 1:
+        last_month_year = now.year - 1
+        last_month = 12
+    else:
+        last_month_year = now.year
+        last_month = now.month - 1
+    last_year_month = f"{last_month_year}-{last_month:02d}"  # 2025-12
+
+    # 获取当月日报
     daily_files = glob.glob(os.path.join(daily_dir, '*.md'))
-    daily_by_month = defaultdict(list)  # 按月份分组
+    current_month_daily = []
 
     for f in sorted(daily_files, reverse=True):  # 按日期倒序
         filename = os.path.basename(f)
@@ -31,55 +43,62 @@ def generate_index():
         try:
             datetime.strptime(date_str, '%Y-%m-%d')
             year_month = date_str[:7]  # 2026-01
-            daily_by_month[year_month].append(date_str)
+            if year_month == current_year_month:
+                current_month_daily.append(date_str)
         except ValueError:
             continue
 
-    # 获取所有周报
+    # 获取当月周报（当年的所有周报）
     weekly_files = glob.glob(os.path.join(weekly_dir, '*.md'))
-    weekly_reports = []
+    current_year_weekly = []
     for f in sorted(weekly_files, reverse=True):
         filename = os.path.basename(f)
         if filename.startswith('example'):
             continue
         week_str = filename.replace('.md', '')
-        weekly_reports.append(week_str)
+        # 只显示当年的周报
+        if week_str.startswith(str(now.year)):
+            current_year_weekly.append(week_str)
 
-    total_daily = sum(len(dates) for dates in daily_by_month.values())
-    total_weekly = len(weekly_reports)
+    # 获取上月月报
+    last_month_report = None
+    monthly_file = os.path.join(monthly_dir, f"{last_year_month}.md")
+    if os.path.exists(monthly_file):
+        last_month_report = last_year_month
+
+    total_daily = len(current_month_daily)
+    total_weekly = len(current_year_weekly)
 
     # 生成周报链接HTML
     weekly_links_html = ""
-    for week in weekly_reports:
+    for week in current_year_weekly:
         weekly_links_html += f'<a href="/reports/weekly/{week}.html" class="report-link week-link">📑 {week}</a>\n'
 
-    # 生成日报区块HTML（按月份分组）
-    daily_sections_html = ""
-    for year_month in sorted(daily_by_month.keys(), reverse=True):
-        dates = sorted(daily_by_month[year_month], reverse=True)
-        year, month = year_month.split('-')
-        month_name = f"{year}年{int(month)}月"
+    # 生成当月日报HTML
+    year, month = current_year_month.split('-')
+    month_name = f"{year}年{int(month)}月"
 
-        daily_links = ""
-        for date_str in dates:
-            display = date_str[5:]  # MM-DD
-            daily_links += f'<a href="/reports/daily/{date_str}.html" class="report-link">{display}</a>\n'
+    daily_links = ""
+    for date_str in current_month_daily:
+        display = date_str[5:]  # MM-DD
+        daily_links += f'<a href="/reports/daily/{date_str}.html" class="report-link">{display}</a>\n'
 
-        daily_sections_html += f'''
+    # 生成上月月报HTML
+    monthly_section_html = ""
+    if last_month_report:
+        last_year, last_mon = last_year_month.split('-')
+        last_month_name = f"{last_year}年{int(last_mon)}月"
+        monthly_section_html = f'''
         <div class="section">
-            <h2>📆 日报 ({month_name}，共{len(dates)}天)</h2>
+            <h2>📊 月报 ({last_month_name})</h2>
             <div class="report-grid">
-                {daily_links}
+                <a href="/reports/monthly/{last_year_month}.html" class="report-link month-link">📄 {last_year_month} 月报</a>
             </div>
         </div>
 '''
 
     # 获取统计周期
-    all_months = sorted(daily_by_month.keys())
-    if all_months:
-        period = f"{all_months[0]} 至 {all_months[-1]}"
-    else:
-        period = "暂无数据"
+    period = f"{current_year_month} (当月)"
 
     html_content = f'''<!DOCTYPE html>
 <html lang="zh-CN">
@@ -164,6 +183,15 @@ def generate_index():
             transform: scale(1.05);
             box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
         }}
+        .month-link {{
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            font-weight: bold;
+        }}
+        .month-link:hover {{
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(245, 87, 108, 0.4);
+        }}
         .dashboard-btn {{
             display: inline-block;
             padding: 15px 30px;
@@ -200,16 +228,16 @@ def generate_index():
 
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="label">日报总数</div>
+                <div class="label">当月日报</div>
                 <div class="value">{total_daily}</div>
             </div>
             <div class="stat-card">
-                <div class="label">周报总数</div>
+                <div class="label">本年周报</div>
                 <div class="value">{total_weekly}</div>
             </div>
             <div class="stat-card">
                 <div class="label">统计月份</div>
-                <div class="value">{len(daily_by_month)}</div>
+                <div class="value">{month_name}</div>
             </div>
         </div>
 
@@ -217,16 +245,24 @@ def generate_index():
             <h2>📈 可视化仪表盘</h2>
             <p style="margin-bottom: 15px; color: #666;">查看代码健康趋势、提交量分析、开发者贡献等可视化数据</p>
             <a href="/dashboard/index.html" class="dashboard-btn">🎯 打开可视化仪表盘</a>
+            <a href="/dashboard/history.html" class="dashboard-btn" style="margin-left: 10px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">📚 查看历史报告</a>
         </div>
 
+        {monthly_section_html}
+
         <div class="section">
-            <h2>📅 周报 (共{total_weekly}周)</h2>
+            <h2>📅 周报 ({year}年，共{total_weekly}周)</h2>
             <div class="report-grid">
                 {weekly_links_html}
             </div>
         </div>
 
-        {daily_sections_html}
+        <div class="section">
+            <h2>📆 日报 ({month_name}，共{total_daily}天)</h2>
+            <div class="report-grid">
+                {daily_links}
+            </div>
+        </div>
 
         <div class="footer">
             由代码健康监控系统自动生成 | 更新时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}
