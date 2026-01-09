@@ -9,6 +9,7 @@
 - [3. 脚本执行异常退出](#3-脚本执行异常退出)
 - [4. 云效 API 调用问题](#4-云效-api-调用问题)
 - [5. Cron 任务不执行](#5-cron-任务不执行)
+- [6. 月报脚本数据统计错误](#6-月报脚本数据统计错误)
 
 ---
 
@@ -232,4 +233,38 @@ ls -la ../reports/daily/$(date +%Y-%m-%d).md
 
 ---
 
-**更新时间**: 2026-01-08
+## 6. 月报脚本数据统计错误
+
+### 现象
+月报中深夜/周末提交统计数据不准确，或统计结果全为 0。
+
+### 原因分析
+函数调用时传入了错误的参数类型：
+
+```python
+# ❌ 错误用法（传入 datetime 对象）
+is_late_night(parse_iso_datetime(c['date']), self.config)
+is_weekend(parse_iso_datetime(c['date']))
+
+# ✅ 正确用法（传入字符串）
+is_late_night(c['date'], self.config)
+is_weekend(c['date'])
+```
+
+`is_late_night()` 和 `is_weekend()` 函数期望字符串参数，会在内部调用 `parse_iso_datetime()` 进行解析。
+
+### 解决方案
+
+检查 `monthly-report.py` 中的函数调用，确保传入字符串而非 datetime 对象：
+
+```python
+# 参考 daily-report.py 和 weekly-report.py 的正确用法
+late_night = len([c for c in all_commits if is_late_night(c['date'], self.config)])
+weekend = len([c for c in all_commits if is_weekend(c['date'])])
+```
+
+> **教训**: 调用函数前检查参数类型是否符合函数签名，参考其他调用点保持一致性。
+
+---
+
+**更新时间**: 2026-01-09
