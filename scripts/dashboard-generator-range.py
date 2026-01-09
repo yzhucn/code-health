@@ -48,8 +48,17 @@ def get_date_range(start_date_str=None, end_date_str=None, days=None):
         return start, end, 30
 
 
-def generate_dashboard_html(data, start_date, end_date, days_count):
-    """生成仪表盘HTML"""
+def generate_dashboard_html(data, start_date, end_date, days_count, project_start_date=None, project_days=None):
+    """生成仪表盘HTML
+
+    Args:
+        data: 统计数据
+        start_date: 统计开始日期
+        end_date: 统计结束日期
+        days_count: 统计天数
+        project_start_date: 项目最早提交日期
+        project_days: 项目运行总天数
+    """
 
     # 提取数据
     commits_trend_data = [data['commits_by_date'].get(date, 0) for date in data['dates']]
@@ -98,6 +107,46 @@ def generate_dashboard_html(data, start_date, end_date, days_count):
         health_scores.append(max(0, min(100, score)))
 
     date_range_str = f"{start_date.strftime('%Y-%m-%d')} 至 {end_date.strftime('%Y-%m-%d')}"
+
+    # 构建时间范围选项
+    range_options = []
+
+    # 添加返回报告中心选项
+    range_options.append({
+        'value': '/reports/index.html',
+        'label': '🏠 返回报告中心',
+        'selected': False
+    })
+
+    # 预设时间范围
+    preset_ranges = [7, 14, 30, 60, 90]
+    for days in preset_ranges:
+        # 如果项目运行天数小于此范围，跳过
+        if project_days and days > project_days:
+            continue
+
+        is_current = (days_count == days)
+        url = 'index.html' if days == 30 else f'index-{days}d.html'
+        range_options.append({
+            'value': url,
+            'label': f'最近{days}天',
+            'selected': is_current
+        })
+
+    # 添加项目全周期选项
+    if project_days and project_start_date:
+        is_all = (days_count == project_days)
+        range_options.append({
+            'value': 'index-all.html',
+            'label': f'📅 项目全周期 ({project_days}天)',
+            'selected': is_all
+        })
+
+    # 生成下拉菜单选项HTML
+    select_options_html = ""
+    for opt in range_options:
+        selected_attr = 'selected' if opt['selected'] else ''
+        select_options_html += f'<option value="{opt["value"]}" {selected_attr}>{opt["label"]}</option>\n'
 
     # 动态查找最新的报告文件
     reports_dir = os.path.join(os.path.dirname(script_dir), 'reports')
@@ -201,66 +250,28 @@ def generate_dashboard_html(data, start_date, end_date, days_count):
             margin-bottom: 15px;
         }}
 
-        .date-inputs {{
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            flex-wrap: wrap;
-        }}
-
-        .date-inputs label {{
-            font-weight: 500;
-            color: #555;
-        }}
-
-        .date-inputs input {{
-            padding: 8px 12px;
+        .date-selector select {{
+            width: 100%;
+            max-width: 400px;
+            padding: 12px 16px;
+            font-size: 15px;
             border: 2px solid #667eea;
-            border-radius: 6px;
-            font-size: 14px;
-        }}
-
-        .date-inputs button {{
-            padding: 10px 20px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-        }}
-
-        .date-inputs button:hover {{
-            background: #5568d3;
-        }}
-
-        .quick-ranges {{
-            margin-top: 10px;
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }}
-
-        .quick-ranges button {{
-            padding: 6px 12px;
+            border-radius: 8px;
             background: white;
-            color: #667eea;
-            border: 1px solid #667eea;
-            border-radius: 4px;
+            color: #333;
             cursor: pointer;
-            font-size: 13px;
+            transition: all 0.2s;
         }}
 
-        .quick-ranges button:hover {{
-            background: #667eea;
-            color: white;
+        .date-selector select:hover {{
+            border-color: #5568d3;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
         }}
 
-        .quick-ranges button.active {{
-            background: #667eea;
-            color: white;
-            font-weight: bold;
+        .date-selector select:focus {{
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }}
 
         .stats-grid {{
@@ -435,13 +446,9 @@ def generate_dashboard_html(data, start_date, end_date, days_count):
             <!-- 时间范围切换 -->
             <div class="date-selector">
                 <h3>📅 切换时间范围</h3>
-                <div class="quick-ranges">
-                    <button onclick="setRange(7)" class="{'active' if days_count == 7 else ''}">最近7天</button>
-                    <button onclick="setRange(14)" class="{'active' if days_count == 14 else ''}">最近14天</button>
-                    <button onclick="setRange(30)" class="{'active' if days_count == 30 else ''}">最近30天</button>
-                    <button onclick="setRange(60)" class="{'active' if days_count == 60 else ''}">最近60天</button>
-                    <button onclick="setRange(90)" class="{'active' if days_count == 90 else ''}">最近90天</button>
-                </div>
+                <select onchange="handleRangeChange(this.value)">
+                    {select_options_html}
+                </select>
             </div>
         </div>
 
@@ -738,8 +745,8 @@ def generate_dashboard_html(data, start_date, end_date, days_count):
         }});
 
         // 时间范围切换功能
-        function setRange(days) {{
-            window.location.href = `index-${{days}}d.html`;
+        function handleRangeChange(value) {{
+            window.location.href = value;
         }}
     </script>
 </body>
@@ -842,8 +849,17 @@ def main():
             except Exception as e:
                 print(f"Error processing commit: {e}")
 
+    # 计算项目最早日期和运行天数
+    project_start_date = None
+    project_days = None
+    if data['all_commits']:
+        # 找到所有提交中最早的日期
+        earliest_commit = min(data['all_commits'], key=lambda c: c['date'])
+        project_start_date = parse_iso_datetime(earliest_commit['date']).date()
+        project_days = (datetime.now().date() - project_start_date).days + 1
+
     # 生成HTML
-    html = generate_dashboard_html(data, start_date, end_date, days_count)
+    html = generate_dashboard_html(data, start_date, end_date, days_count, project_start_date, project_days)
 
     # 保存文件
     output_dir = os.path.join(project_root, 'dashboard')
