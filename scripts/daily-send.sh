@@ -10,6 +10,21 @@ LOG_FILE="$PROJECT_ROOT/reports/daily-send.log"
 echo "======================================" | tee -a $LOG_FILE
 echo "$(date '+%Y-%m-%d %H:%M:%S') - 开始推送钉钉消息" | tee -a $LOG_FILE
 
+# 获取昨天的日期
+YESTERDAY=$(date -v-1d '+%Y-%m-%d' 2>/dev/null || date -d 'yesterday' '+%Y-%m-%d')
+REPORT_FILE="$PROJECT_ROOT/reports/daily/${YESTERDAY}.md"
+
+# 发送前验证数据
+if [ -f "$SCRIPT_DIR/validate-before-send.sh" ] && [ -f "$REPORT_FILE" ]; then
+    echo "   🔍 验证报告数据..." | tee -a $LOG_FILE
+    if $SCRIPT_DIR/validate-before-send.sh "$REPORT_FILE" "daily" >> $LOG_FILE 2>&1; then
+        echo "   ✅ 数据验证通过" | tee -a $LOG_FILE
+    else
+        echo "   ❌ 数据验证失败，跳过发送" | tee -a $LOG_FILE
+        exit 1
+    fi
+fi
+
 # 推送到钉钉 - 使用v3版本脚本
 if [ -f "$SCRIPT_DIR/send-to-dingtalk-daily-v3.sh" ]; then
     $SCRIPT_DIR/send-to-dingtalk-daily-v3.sh >> $LOG_FILE 2>&1
