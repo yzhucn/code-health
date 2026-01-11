@@ -36,33 +36,59 @@ class WeeklyReportGenerator:
     def __init__(self, config_path: str, week_str: str = None):
         self.config = load_config(config_path)
 
-        # 解析周期
+        # 解析周期 - 改用自然周（基于日期的周一到周日）
         if week_str:
-            # 格式: 2025-W52
-            year, week = week_str.split('-W')
-            self.year = int(year)
-            self.week = int(week)
+            # 格式支持两种：
+            # 1. 日期格式: 2025-12-30 (自动找到该日期所在周的周一)
+            # 2. 保持兼容旧格式: 2025-W52 (转换为该周的周一日期)
+            if '-W' in week_str:
+                # 兼容旧的ISO周格式，但改为自然周计算
+                year, week = week_str.split('-W')
+                self.year = int(year)
+                week_num = int(week)
+                # 找到该年第一个周一
+                jan1 = datetime(self.year, 1, 1)
+                days_to_monday = (7 - jan1.weekday()) % 7
+                if days_to_monday == 0 and jan1.weekday() != 0:
+                    days_to_monday = 7
+                first_monday = jan1 + timedelta(days=days_to_monday if jan1.weekday() != 0 else 0)
+                # 计算目标周的周一
+                week_start = first_monday + timedelta(weeks=week_num - 1)
+            else:
+                # 日期格式，找到该日期所在周的周一
+                date_obj = datetime.strptime(week_str, "%Y-%m-%d")
+                days_since_monday = date_obj.weekday()
+                week_start = date_obj - timedelta(days=days_since_monday)
+                self.year = week_start.year
         else:
-            # 使用当前周
+            # 使用上周（周一到周日）
             now = datetime.now()
-            self.year = now.year
-            self.week = now.isocalendar()[1]
+            # 找到上周一
+            days_since_monday = now.weekday()
+            this_monday = now - timedelta(days=days_since_monday)
+            week_start = this_monday - timedelta(weeks=1)
+            self.year = week_start.year
 
-        self.week_str = f"{self.year}-W{self.week:02d}"
-
-        # 计算周的起始和结束时间
-        # ISO 8601: 周一是一周的第一天
-        jan4 = datetime(self.year, 1, 4)  # 1月4日总是在第一周
-        week1_monday = jan4 - timedelta(days=jan4.weekday())
-        week_start = week1_monday + timedelta(weeks=self.week - 1)
-        week_end = week_start + timedelta(days=7)
+        # 计算周的起始和结束时间（周一00:00 到 周日23:59:59）
+        week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
 
         self.since_time = week_start.strftime("%Y-%m-%d 00:00:00")
-        self.until_time = week_end.strftime("%Y-%m-%d 00:00:00")
+        self.until_time = week_end.strftime("%Y-%m-%d 23:59:59")
 
-        # 保存日期范围用于显示（周日是最后一天）
+        # 保存日期范围用于显示
         self.week_start_date = week_start
-        self.week_end_date = week_start + timedelta(days=6)  # 周一+6天=周日
+        self.week_end_date = week_start + timedelta(days=6)  # 周日
+
+        # 计算这是一年中的第几周（用于文件名，从1月第一个周一开始计数）
+        jan1 = datetime(week_start.year, 1, 1)
+        days_to_first_monday = (7 - jan1.weekday()) % 7
+        if days_to_first_monday == 0 and jan1.weekday() != 0:
+            days_to_first_monday = 7
+        first_monday = jan1 + timedelta(days=days_to_first_monday if jan1.weekday() != 0 else 0)
+        week_number = ((week_start - first_monday).days // 7) + 1
+
+        # 生成周报标识符：保持 YYYY-Wxx 格式便于文件管理
+        self.week_str = f"{week_start.year}-W{week_number:02d}"
         self.date_range_str = f"{self.week_start_date.strftime('%m月%d日')} - {self.week_end_date.strftime('%m月%d日')}"
 
         self.analyzers = self._init_analyzers()

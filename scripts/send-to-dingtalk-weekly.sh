@@ -4,14 +4,22 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/../config.yaml"
 
-# 支持指定周期参数，默认为上周
+# 支持指定周期参数，默认为本周（周六执行）或上周（其他时间）
 if [ -n "$1" ] && [ -n "$2" ]; then
     WEEK="${1}-W${2}"
 elif [ -n "$1" ]; then
     # 如果只有一个参数，假设是完整的YYYY-WXX格式
     WEEK="$1"
 else
-    WEEK=$(date -d "last saturday" +%Y-W%V)
+    # 智能判断：如果今天是周六，用当前周；否则用上周六
+    TODAY_WEEKDAY=$(date +%u 2>/dev/null || date +%w)  # %u: 1-7 (7=Sunday), %w: 0-6 (0=Sunday)
+    if [ "$TODAY_WEEKDAY" = "6" ]; then
+        # 今天是周六，使用本周周数
+        WEEK=$(date +%Y-W%V)
+    else
+        # 其他日期，使用上周六的周数
+        WEEK=$(date -d "last saturday" +%Y-W%V 2>/dev/null || date -v-sat +%Y-W%V)
+    fi
 fi
 
 REPORT_FILE="$SCRIPT_DIR/../reports/weekly/$WEEK.md"
@@ -20,25 +28,25 @@ REPORT_FILE="$SCRIPT_DIR/../reports/weekly/$WEEK.md"
 WEBHOOK=$(grep -A 5 "dingtalk:" $CONFIG_FILE | grep "webhook:" | awk '{print $2}' | tr -d '"')
 SECRET=$(grep -A 5 "dingtalk:" $CONFIG_FILE | grep "secret:" | awk '{print $2}' | tr -d '"')
 BASE_URL=$(grep -A 3 "web:" $CONFIG_FILE | grep "base_url:" | awk '{print $2}' | tr -d '"')
-PROJECT_NAME=$(grep -A 2 "project:" $CONFIG_FILE | grep "name:" | sed 's/.*name: *"\?\([^"]*\)"\?.*/\1/' || echo "代码健康监控平台")
+PROJECT_NAME=$(grep -A 2 "project:" $CONFIG_FILE | grep "name:" | awk -F': ' '{print $2}' | tr -d '"' || echo "代码健康监控平台")
 
 if [ ! -f "$REPORT_FILE" ]; then
     echo "⚠️  报告文件不存在: $REPORT_FILE"
     exit 1
 fi
 
-# 提取关键数据
-TOTAL_COMMITS=$(grep "| 总提交数" "$REPORT_FILE" | head -1 | grep -oP '\d+' | head -1 || echo "0")
-TOTAL_LINES=$(grep "| \*\*总净增行数\*\*" "$REPORT_FILE" | head -1 | grep -oP '[+-]?\d+' | head -1 || echo "0")
-DEVELOPERS=$(grep "| 活跃开发者" "$REPORT_FILE" | head -1 | grep -oP '\d+' || echo "0")
+# 提取关键数据（兼容macOS和Linux）
+TOTAL_COMMITS=$(grep "| 总提交数" "$REPORT_FILE" | head -1 | sed -E 's/[^0-9]*([0-9]+).*/\1/' || echo "0")
+TOTAL_LINES=$(grep "| \*\*总净增行数\*\*" "$REPORT_FILE" | head -1 | sed -E 's/.*\*\*([+-]?[0-9,]+)\*\*.*/\1/' | tr -d ',' || echo "0")
+DEVELOPERS=$(grep "| 活跃开发者" "$REPORT_FILE" | head -1 | sed -E 's/[^0-9]*([0-9]+).*/\1/' || echo "0")
 
 # 提取TOP1贡献者
 TOP1=$(grep -A 1 "提交量排行榜" "$REPORT_FILE" | grep "| 1 |" | awk -F'|' '{print $3}' | tr -d ' ' || echo "未知")
 TOP1_LINES=$(grep -A 1 "提交量排行榜" "$REPORT_FILE" | grep "| 1 |" | awk -F'|' '{print $7}' | tr -d ' *+' || echo "0")
 
 # 提取风险信息
-HIGH_RISK_FILES=$(grep "🔴 严重" "$REPORT_FILE" | grep -oP '\d+' | head -1 || echo "0")
-CHURN_RATE=$(grep "本周震荡率\*\*:" "$REPORT_FILE" | grep -oP '\d+\.\d+' || echo "0")
+HIGH_RISK_FILES=$(grep "🔴 严重" "$REPORT_FILE" | sed -E 's/[^0-9]*([0-9]+).*/\1/' | head -1 || echo "0")
+CHURN_RATE=$(grep "本周震荡率\*\*:" "$REPORT_FILE" | sed -E 's/.*([0-9]+\.[0-9]+).*/\1/' || echo "0")
 
 # 报告链接 (HTML格式)
 REPORT_URL="$BASE_URL/reports/weekly/$WEEK.html"

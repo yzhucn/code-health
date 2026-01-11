@@ -355,8 +355,21 @@ class MonthlyReportGenerator:
 
         for commit in all_commits:
             commit_date = datetime.strptime(commit['date'][:10], '%Y-%m-%d')
-            week_num = commit_date.isocalendar()[1]
-            week_key = f"{commit_date.year}-W{week_num:02d}"
+
+            # 使用自然周计算（与周报保持一致）
+            # 找到该日期所在周的周一
+            days_since_monday = commit_date.weekday()
+            week_start = commit_date - timedelta(days=days_since_monday)
+
+            # 计算这是一年中的第几周（从1月第一个周一开始计数）
+            jan1 = datetime(week_start.year, 1, 1)
+            days_to_first_monday = (7 - jan1.weekday()) % 7
+            if days_to_first_monday == 0 and jan1.weekday() != 0:
+                days_to_first_monday = 7
+            first_monday = jan1 + timedelta(days=days_to_first_monday if jan1.weekday() != 0 else 0)
+            week_num = ((week_start - first_monday).days // 7) + 1
+
+            week_key = f"{week_start.year}-W{week_num:02d}"
 
             weekly_stats[week_key]['commits'] += 1
             weekly_stats[week_key]['added'] += commit['lines_added']
@@ -371,8 +384,39 @@ class MonthlyReportGenerator:
         for week in sorted(weekly_stats.keys()):
             stats = weekly_stats[week]
             net = stats['added'] - stats['deleted']
+
+            # 将周号转换为更友好的显示格式：第N周 (日期范围)
+            # 从 week_key (如 2025-W48) 计算出日期范围
+            year_str, week_num_str = week.split('-W')
+            year = int(year_str)
+            week_num = int(week_num_str)
+
+            # 计算该周的周一日期
+            jan1 = datetime(year, 1, 1)
+            days_to_first_monday = (7 - jan1.weekday()) % 7
+            if days_to_first_monday == 0 and jan1.weekday() != 0:
+                days_to_first_monday = 7
+            first_monday = jan1 + timedelta(days=days_to_first_monday if jan1.weekday() != 0 else 0)
+            week_start = first_monday + timedelta(weeks=week_num - 1)
+            week_end = week_start + timedelta(days=6)
+
+            # 判断这周是当月的第几周
+            if week_start.month == self.month:
+                # 计算是本月第几周
+                month_first_day = datetime(self.year, self.month, 1)
+                days_to_monday = (7 - month_first_day.weekday()) % 7
+                if days_to_monday == 0 and month_first_day.weekday() != 0:
+                    days_to_monday = 7
+                month_first_monday = month_first_day + timedelta(days=days_to_monday if month_first_day.weekday() != 0 else 0)
+                month_week_num = ((week_start - month_first_monday).days // 7) + 1
+
+                week_label = f"第{month_week_num}周 ({week_start.strftime('%m/%d')}-{week_end.strftime('%m/%d')})"
+            else:
+                # 跨月的周，显示完整日期
+                week_label = f"{week} ({week_start.strftime('%m/%d')}-{week_end.strftime('%m/%d')})"
+
             lines.append(
-                f"| {week} | {stats['commits']} | "
+                f"| {week_label} | {stats['commits']} | "
                 f"{format_number(stats['added'])} | {format_number(stats['deleted'])} | "
                 f"{format_number(net)} | {len(stats['authors'])} |"
             )

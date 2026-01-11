@@ -10,12 +10,12 @@ LOG_FILE="$PROJECT_ROOT/reports/weekly-send.log"
 echo "======================================" | tee -a $LOG_FILE
 echo "$(date '+%Y-%m-%d %H:%M:%S') - 开始推送周报到钉钉" | tee -a $LOG_FILE
 
-# 推送到钉钉
-if [ -f "$SCRIPT_DIR/send-to-dingtalk-weekly.sh" ]; then
-    $SCRIPT_DIR/send-to-dingtalk-weekly.sh >> $LOG_FILE 2>&1
-    echo "   ✅ 周报已发送到钉钉" | tee -a $LOG_FILE
+# 推送到钉钉 - 使用v4版本脚本
+if [ -f "$SCRIPT_DIR/send-to-dingtalk-weekly-v4.sh" ]; then
+    $SCRIPT_DIR/send-to-dingtalk-weekly-v4.sh >> $LOG_FILE 2>&1
+    echo "   ✅ 周报已发送到钉钉 (使用v4脚本)" | tee -a $LOG_FILE
 else
-    echo "   ⚠️  钉钉周报脚本不存在" | tee -a $LOG_FILE
+    echo "   ⚠️  钉钉周报v4脚本不存在" | tee -a $LOG_FILE
 fi
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') - 周报推送完成" | tee -a $LOG_FILE
