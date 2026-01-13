@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  # 主服务 - 按需执行报告生成
+  code-health:
+    build: .
+    image: code-health:latest
+    container_name: code-health
+    environment:
+      # Git平台配置 (必需)
+      - GIT_TOKEN=${GIT_TOKEN}
+      - GIT_PLATFORM=${GIT_PLATFORM:-git}
+      - GIT_ORG=${GIT_ORG:-}
+      - GIT_BASE_URL=${GIT_BASE_URL:-}
+
+      # 云效配置 (codeup平台)
+      - CODEUP_ORG_ID=${CODEUP_ORG_ID:-}
+
+      # 项目名称
+      - PROJECT_NAME=${PROJECT_NAME:-代码健康监控}
+
+      # 通知配置
+      - DINGTALK_ENABLED=${DINGTALK_ENABLED:-false}
+      - DINGTALK_WEBHOOK=${DINGTALK_WEBHOOK:-}
+      - DINGTALK_SECRET=${DINGTALK_SECRET:-}
+      - FEISHU_ENABLED=${FEISHU_ENABLED:-false}
+      - FEISHU_WEBHOOK=${FEISHU_WEBHOOK:-}
+
+      # Web访问
+      - WEB_BASE_URL=${WEB_BASE_URL:-http://localhost:8080}
+
+      # 时区
+      - TZ=Asia/Shanghai
+    volumes:
+      # 报告输出
+      - ./reports:/app/reports
+      - ./dashboard:/app/dashboard
+      - ./logs:/app/logs
+
+      # 可选：自定义配置
+      - ./config/config.yaml:/app/config/config.yaml:ro
+    networks:
+      - code-health-net
+
+  # 定时任务服务
+  scheduler:
+    build: .
+    image: code-health:latest
+    container_name: code-health-scheduler
+    environment:
+      - GIT_TOKEN=${GIT_TOKEN}
+      - GIT_PLATFORM=${GIT_PLATFORM:-git}
+      - GIT_ORG=${GIT_ORG:-}
+      - DINGTALK_ENABLED=${DINGTALK_ENABLED:-false}
+      - DINGTALK_WEBHOOK=${DINGTALK_WEBHOOK:-}
+      - DINGTALK_SECRET=${DINGTALK_SECRET:-}
+      - WEB_BASE_URL=${WEB_BASE_URL:-http://localhost:8080}
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./reports:/app/reports
+      - ./dashboard:/app/dashboard
+      - ./logs:/app/logs
+      - ./config/config.yaml:/app/config/config.yaml:ro
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        echo "=== Code Health Scheduler ==="
+        echo "定时任务配置:"
+        echo "  - 每天 18:00: 生成日报"
+        echo "  - 每周五 17:00: 生成周报"
+        echo ""
+
+        # 安装 cron
+        apt-get update && apt-get install -y cron
+
+        # 创建定时任务
+        cat > /etc/cron.d/code-health << 'EOF'
+        # 每天 18:00 生成日报
+        0 18 * * * root cd /app && python -m src.main daily >> /app/logs/cron.log 2>&1
+
+        # 每周五 17:00 生成周报
+        0 17 * * 5 root cd /app && python -m src.main weekly >> /app/logs/cron.log 2>&1
+
+        # 每月1日 10:00 生成月报
+        0 10 1 * * root cd /app && python -m src.main monthly >> /app/logs/cron.log 2>&1
+        EOF
+
+        chmod 0644 /etc/cron.d/code-health
+        crontab /etc/cron.d/code-health
+
+        echo "定时任务已启动"
+        cron -f
+    restart: unless-stopped
+    networks:
+      - code-health-net
+
+  # Nginx静态服务 - 提供报告查看
+  nginx:
+    image: nginx:alpine
+    container_name: code-health-web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./reports:/usr/share/nginx/html/reports:ro
+      - ./dashboard:/usr/share/nginx/html/dashboard:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - code-health
+    restart: unless-stopped
+    networks:
+      - code-health-net
+
+networks:
+  code-health-net:
+    driver: bridge

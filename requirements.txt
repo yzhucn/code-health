@@ -3,6 +3,9 @@
 # YAML configuration file parsing
 PyYAML>=6.0
 
+# HTTP requests (for notifications and API providers)
+requests>=2.28.0
+
 # Markdown processing
 markdown>=3.5.0
 

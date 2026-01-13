@@ -25,6 +25,7 @@ venv/
 # Configuration files (keep example, ignore actual config)
 config.yaml
 config-ecs.yaml
+.env
 
 # Repository list (contains private repo URLs)
 repos-list.txt
@@ -37,9 +38,16 @@ reports/weekly/*.md
 reports/weekly/*.html
 !reports/weekly/example-*.md
 reports/monthly/*.md
+reports/monthly/*.html
 !reports/monthly/example-*.md
 reports/index.html
 reports/*.log
+
+# Test output directories
+reports_v2_test/
+
+# Validation reports (contain private data)
+V2_VALIDATION_REPORT.md
 
 # Dashboard (generated files)
 dashboard/*.html
@@ -57,3 +65,4 @@ update-repos-config.sh
 
 # Temporary repos directory
 repos/
+.env.test

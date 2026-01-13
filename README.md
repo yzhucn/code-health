@@ -5,19 +5,22 @@
 
 **中文** | [English](README_EN.md)
 
-> 📢 **最新发布**: [Code Health Monitor v1.0.0 正式发布！](https://github.com/yzhucn/code-health/discussions/1) - 2026-01-05
+> 📢 **v2.0 发布**: Docker 化部署、多平台支持、Provider 架构重构
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![Bash](https://img.shields.io/badge/shell-bash-green.svg)](https://www.gnu.org/software/bash/)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
 [![GitHub stars](https://img.shields.io/github/stars/yzhucn/code-health?style=social)](https://github.com/yzhucn/code-health/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/yzhucn/code-health?style=social)](https://github.com/yzhucn/code-health/network/members)
-[![GitHub issues](https://img.shields.io/github/issues/yzhucn/code-health)](https://github.com/yzhucn/code-health/issues)
-[![GitHub last commit](https://img.shields.io/github/last-commit/yzhucn/code-health)](https://github.com/yzhucn/code-health/commits/main)
 
 ## 简介
 
-Code Health Monitor 是一个轻量级的代码质量和团队效能自动化监控工具，通过分析 Git 提交历史，自动生成日报、周报，并推送到钉钉/飞书等协作平台。
+Code Health Monitor 是一个轻量级的代码质量和团队效能自动化监控工具，通过分析 Git 提交历史，自动生成日报、周报、月报，并推送到钉钉/飞书等协作平台。
+
+**v2.0 新特性：**
+- Docker 一键部署，开箱即用
+- 支持远程仓库自动浅克隆（无需本地仓库）
+- Provider 架构，支持多 Git 平台 (GitHub/GitLab/Codeup)
+- 模块化 Python 代码结构
 
 帮助项目管理者和技术 Leader：
 - 🎯 实时掌握代码健康状况
@@ -152,379 +155,96 @@ Code Health Monitor 是一个轻量级的代码质量和团队效能自动化监
 - 代码变更热力图
 - HTML 报告查看
 
-## 快速开始
+## 快速开始 (v2 Docker 部署)
 
-### 前置要求
+详见 [QUICK_START.md](QUICK_START.md) 获取完整指南。
 
-- Python 3.8+
-- Git 2.0+
-- Bash shell
-- (可选) Nginx（Web 访问）
-
-### 安装部署
-
-#### 1. 克隆项目
+### 1. 配置环境变量
 
 ```bash
-git clone https://github.com/yzhucn/code-health.git
-cd code-health
+cp .env.example .env
+vi .env
 ```
-
-#### 2. 安装依赖
 
 ```bash
-pip3 install -r requirements.txt
+# 必需配置
+GIT_TOKEN=your_git_token_here
+PROJECT_NAME=我的项目
+
+# 仓库配置
+REPOSITORIES=backend|https://github.com/org/backend.git|java|main,frontend|https://github.com/org/frontend.git|vue|main
+
+# 钉钉通知（可选）
+DINGTALK_ENABLED=true
+DINGTALK_WEBHOOK=https://oapi.dingtalk.com/robot/send?access_token=xxx
+DINGTALK_SECRET=SECxxx
 ```
 
-#### 3. 配置监控仓库
-
-**复制配置模板**：
+### 2. 启动服务
 
 ```bash
-cp config.example.yaml config.yaml
+# 构建并启动
+docker-compose up -d
+
+# 手动生成日报
+docker-compose run --rm code-health daily
+
+# 查看报告
+open http://localhost:8080
 ```
 
-**编辑 `config.yaml`**，添加需要监控的代码仓库：
-
-```yaml
-repositories:
-  - path: /path/to/your/repo1  # 仓库的绝对路径
-    name: your-repo-name        # 显示名称
-    type: java                  # 项目类型：java, python, vue, flutter
-    main_branch: main           # 主分支名称
-
-  - path: /path/to/your/repo2
-    name: another-repo
-    type: python
-    main_branch: dev
-```
-
-**配置钉钉/飞书通知**（可选）：
-
-```yaml
-notification:
-  dingtalk:
-    enabled: true
-    webhook: https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN
-    secret: YOUR_SECRET
-
-  feishu:
-    enabled: false
-    webhook: https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK
-```
-
-**如何获取钉钉 Webhook 和 Secret：**
-
-1. 在钉钉群中，点击「群设置」→「智能群助手」→「添加机器人」
-2. 选择「自定义」机器人，输入机器人名称（如：代码健康监控）
-3. **安全设置**：选择「加签」方式，复制生成的 **Secret**
-4. 完成后，复制 **Webhook 地址**（包含 access_token）
-5. 将 Webhook 和 Secret 填入 `config.yaml`
-
-**重要安全提示：**
-- ⚠️ `config.yaml` 包含敏感信息，已在 `.gitignore` 中忽略，不会提交到 Git
-- ⚠️ 切勿将真实的 webhook 和 secret 提交到公开仓库
-- ✅ 只有 `config.example.yaml` 会被提交，它仅包含占位符
-
-**配置 Web 访问 URL**（用于钉钉中的报告链接）：
-
-```yaml
-web:
-  base_url: "http://localhost:8080"  # 本地开发
-  # base_url: "http://YOUR_ECS_IP:8080"  # ECS 部署时修改为服务器地址
-```
-
-**高级：使用环境变量管理敏感信息（可选，更安全）：**
-
-除了在 `config.yaml` 中配置，也可以使用环境变量：
+### 3. 命令行使用
 
 ```bash
-# ~/.bashrc 或 ~/.zshrc
-export DINGTALK_WEBHOOK="https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN"
-export DINGTALK_SECRET="YOUR_SECRET"
-export GIT_TOKEN="your_git_token"  # 用于 auto-clone-repos.sh
+# 生成日报/周报/月报
+python -m src.main daily
+python -m src.main weekly
+python -m src.main monthly --month 2025-01
+
+# 发送通知
+python -m src.main notify daily
+python -m src.main notify weekly --week 2025-W02
 ```
 
-然后修改脚本读取环境变量（或者保持现状，环境变量主要用于 Git Token）。
-
-#### 4. 测试配置
-
-**本地测试（推荐先在本地验证配置正确）：**
-
-```bash
-cd scripts
-
-# 测试1：生成日报（不推送）
-python3 daily-report.py
-
-# 检查生成的报告
-ls -lh ../reports/daily/
-
-# 测试2：转换为 HTML
-python3 md2html.py ../reports/daily/$(date +%Y-%m-%d).md
-
-# 测试3：测试钉钉推送（如果配置了钉钉）
-./send-to-dingtalk.sh $(date +%Y-%m-%d)
-```
-
-**验证checklist：**
-- ✅ 日报文件已生成：`reports/daily/YYYY-MM-DD.md`
-- ✅ HTML 文件已生成：`reports/daily/YYYY-MM-DD.html`
-- ✅ 钉钉消息已收到（如果配置了钉钉）
-- ✅ 报告中包含各仓库的提交统计
-
-如果以上测试都通过，说明配置正确，可以继续部署到 ECS 或设置定时任务。
-
-**常见配置场景：**
-
-<details>
-<summary><b>场景1：本地开发 + 监控本地仓库</b></summary>
-
-```yaml
-repositories:
-  - path: /Users/yourname/projects/my-backend
-    name: my-backend
-    type: java
-    main_branch: main
-
-notification:
-  dingtalk:
-    enabled: false  # 本地测试时可以先禁用
-
-web:
-  base_url: "http://localhost:8080"
-```
-
-</details>
-
-<details>
-<summary><b>场景2：ECS 部署 + 自动克隆远程仓库</b></summary>
-
-1. 创建 `repos-list.txt`：
-   ```txt
-   backend|https://github.com/yourorg/backend.git
-   frontend|https://github.com/yourorg/frontend.git
-   ```
-
-2. 设置环境变量（私有仓库需要）：
-   ```bash
-   export GIT_TOKEN="your_github_personal_access_token"
-   ```
-
-3. `config.yaml` 中配置临时克隆目录：
-   ```yaml
-   repositories:
-     - path: /opt/your-project/repos/backend
-       name: backend
-       type: java
-       main_branch: main
-
-   notification:
-     dingtalk:
-       enabled: true
-       webhook: https://oapi.dingtalk.com/robot/send?access_token=YOUR_REAL_TOKEN
-       secret: YOUR_REAL_SECRET
-
-   web:
-     base_url: "http://YOUR_ECS_IP:8080"
-   ```
-
-</details>
-
-<details>
-<summary><b>场景3：混合模式（本地仓库 + 远程仓库）</b></summary>
-
-部分仓库已在 ECS 上（如正在运行的服务），部分需要临时克隆：
-
-```yaml
-repositories:
-  # 本地已存在的仓库
-  - path: /opt/services/production-backend
-    name: backend-prod
-    type: java
-    main_branch: master
-
-  # 需要自动克隆的仓库（通过 repos-list.txt）
-  - path: /opt/your-project/repos/frontend
-    name: frontend
-    type: vue
-    main_branch: dev
-```
-
-然后运行 `scripts/auto-clone-repos.sh` 只克隆 repos-list.txt 中配置的仓库。
-
-</details>
-
-#### 5. 生成报告
-
-```bash
-# 生成今天的日报
-cd scripts
-./run.sh daily
-
-# 生成本周周报
-./run.sh weekly
-```
-
-## ECS 服务器部署
-
-### 前提条件
-
-1. 在 GitHub 上创建仓库并推送代码（见下文"推送到 GitHub"）
-2. ECS 服务器上已安装 Git, Python 3.8+, Nginx
-
-### 一键部署步骤
-
-#### 1. 在 ECS 上克隆代码
-
-```bash
-# SSH 登录 ECS
-ssh root@YOUR_ECS_IP
-
-# 创建目录并克隆
-mkdir -p /opt/your-project
-cd /opt/your-project
-git clone https://github.com/yzhucn/code-health.git .code-health
-cd .code-health
-```
-
-#### 2. 配置项目
-
-```bash
-# 复制配置模板
-cp config.example.yaml config.yaml
-
-# 编辑配置文件，填写实际的仓库路径、钉钉webhook等
-vim config.yaml
-```
-
-#### 3. 安装依赖
-
-```bash
-pip3 install -r requirements.txt
-```
-
-#### 4. 配置定时任务
-
-编辑 crontab：
-
-```bash
-crontab -e
-```
-
-添加以下内容（注意替换路径）：
-
-```bash
-# 每天早上 8:00 生成并推送日报
-0 8 * * * /opt/your-project/.code-health/scripts/daily-job.sh
-
-# 每周五下午 17:00 生成并推送周报
-0 17 * * 5 /opt/your-project/.code-health/scripts/weekly-job.sh
-```
-
-#### 5. 配置 Nginx（可选）
-
-如需 Web 访问，配置 Nginx：
-
-```nginx
-server {
-    listen 8080;
-    server_name YOUR_ECS_IP;
-
-    location / {
-        root /opt/your-project/.code-health;
-        index index.html;
-        autoindex on;
-    }
-
-    location /reports/ {
-        alias /opt/your-project/.code-health/reports/;
-        autoindex on;
-    }
-
-    location /dashboard/ {
-        alias /opt/your-project/.code-health/dashboard/;
-    }
-}
-```
-
-重启 Nginx：
-
-```bash
-nginx -t
-systemctl reload nginx
-```
-
-### Web 访问
-
-部署后可通过浏览器访问：
-
-- **仪表盘**：http://YOUR_ECS_IP:8080/dashboard/
-- **日报列表**：http://YOUR_ECS_IP:8080/reports/
-- **具体日报**：http://YOUR_ECS_IP:8080/reports/daily/2026-01-04.html
-
-## 本地开发
-
-### 本地运行
-
-```bash
-cd scripts
-
-# 生成今天的日报
-python3 daily-report.py
-
-# 生成指定日期的日报
-python3 daily-report.py 2026-01-01
-
-# 生成本周周报
-python3 weekly-report.py
-```
-
-### 本地测试钉钉推送
-
-```bash
-# 推送昨天的日报
-./send-to-dingtalk.sh
-
-# 推送指定日期的日报
-./send-to-dingtalk.sh 2026-01-04
-```
-
-## 项目结构
+## 项目结构 (v2)
 
 ```
 .code-health/
-├── README.md                    # 项目说明（本文件）
-├── METRICS.md                   # 详细指标体系文档
-├── config.yaml                  # 主配置文件
-├── requirements.txt             # Python 依赖
-├── .gitignore                   # Git 忽略文件
-│
-├── scripts/                     # 核心脚本
-│   ├── run.sh                   # 主入口脚本
-│   ├── daily-report.py          # 日报生成器
-│   ├── weekly-report.py         # 周报生成器
-│   ├── utils.py                 # 公共工具函数
-│   ├── daily-job.sh             # 日报定时任务
-│   ├── weekly-job.sh            # 周报定时任务
-│   ├── send-to-dingtalk.sh      # 钉钉推送脚本
-│   ├── md2html.py               # Markdown 转 HTML
-│   ├── dashboard-generator.py   # 仪表盘生成器
-│   └── auto-clone-repos.sh      # 自动克隆仓库
-│
-├── reports/                     # 报告存档
-│   ├── daily/                   # 日报（MD + HTML）
-│   │   ├── 2026-01-04.md
-│   │   └── 2026-01-04.html
-│   └── weekly/                  # 周报（MD + HTML）
-│       └── 2026-W01.md
-│
-├── dashboard/                   # 可视化仪表盘
-│   ├── index.html               # 默认仪表盘（7天）
-│   ├── index-14d.html           # 14天仪表盘
-│   ├── index-30d.html           # 30天仪表盘
-│   ├── index-60d.html           # 60天仪表盘
-│   └── index-90d.html           # 90天仪表盘
+├── src/                         # v2 核心代码
+│   ├── main.py                  # 主入口
+│   ├── config.py                # 配置管理
+│   ├── providers/               # Git 数据提供者
+│   │   ├── base.py              # Provider 抽象基类
+│   │   ├── generic_git.py       # 通用 Git Provider (浅克隆)
+│   │   ├── github.py            # GitHub API Provider
+│   │   ├── gitlab.py            # GitLab API Provider
+│   │   └── codeup.py            # 阿里云 Codeup Provider
+│   ├── analyzers/               # 分析器
+│   │   ├── git_analyzer.py      # Git 提交分析
+│   │   ├── churn.py             # 代码震荡分析
+│   │   ├── rework.py            # 返工率分析
+│   │   ├── hotspot.py           # 热点文件分析
+│   │   └── health_score.py      # 健康评分计算
+│   ├── reporters/               # 报告生成器
+│   │   ├── base.py              # 报告基类
+│   │   ├── daily.py             # 日报生成
+│   │   ├── weekly.py            # 周报生成
+│   │   └── monthly.py           # 月报生成
+│   ├── notifiers/               # 通知模块
+│   │   ├── base.py              # 通知器基类
+│   │   ├── dingtalk.py          # 钉钉通知
+│   │   └── feishu.py            # 飞书通知
+│   └── utils/                   # 工具函数
+│       └── helpers.py
+├── config/
+│   └── config.yaml              # 配置文件
+├── scripts/                     # v1 脚本 (兼容保留)
+├── Dockerfile
+├── docker-compose.yml
+├── entrypoint.sh
+├── nginx.conf
+├── README.md
+└── QUICK_START.md
 ```
 
 ## 配置说明
