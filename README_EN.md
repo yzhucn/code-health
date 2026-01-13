@@ -4,19 +4,22 @@
 
 [中文文档](README.md) | **English**
 
-> 📢 **Latest Release**: [Code Health Monitor v1.0.0 Released!](https://github.com/yzhucn/code-health/discussions/1) - 2026-01-05
+> 📢 **v2.0 Released**: Docker deployment, multi-platform support, Provider architecture refactoring
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![Bash](https://img.shields.io/badge/shell-bash-green.svg)](https://www.gnu.org/software/bash/)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
 [![GitHub stars](https://img.shields.io/github/stars/yzhucn/code-health?style=social)](https://github.com/yzhucn/code-health/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/yzhucn/code-health?style=social)](https://github.com/yzhucn/code-health/network/members)
-[![GitHub issues](https://img.shields.io/github/issues/yzhucn/code-health)](https://github.com/yzhucn/code-health/issues)
-[![GitHub last commit](https://img.shields.io/github/last-commit/yzhucn/code-health)](https://github.com/yzhucn/code-health/commits/main)
 
 ## Introduction
 
-Code Health Monitor is a lightweight code quality and team productivity monitoring tool. It analyzes Git commit history to automatically generate daily and weekly reports, and pushes them to collaboration platforms like DingTalk/Feishu.
+Code Health Monitor is a lightweight code quality and team productivity monitoring tool. It analyzes Git commit history to automatically generate daily, weekly, and monthly reports, and pushes them to collaboration platforms like DingTalk/Feishu.
+
+**v2.0 New Features:**
+- Docker one-click deployment, ready to use out of the box
+- Supports remote repository auto shallow clone (no local repos needed)
+- Provider architecture, supporting multiple Git platforms (GitHub/GitLab/Codeup)
+- Modular Python code structure
 
 Helps project managers and tech leads:
 - 🎯 Real-time code health monitoring
@@ -28,7 +31,7 @@ Helps project managers and tech leads:
 
 ### 📱 DingTalk Daily Report
 
-The system automatically pushes daily health monitoring reports to DingTalk group chat in the following format:
+The system automatically pushes daily health monitoring reports to DingTalk group chat:
 
 ```
 📊 Code Management - Daily Health Monitor
@@ -128,6 +131,7 @@ Score Breakdown:
 
 - **Daily Reports**: Auto-generated at 8:00 AM, covering commit stats, code changes, risk alerts, and health scores
 - **Weekly Reports**: Auto-generated every Friday, including productivity rankings, high-risk files, team health, and quality trends
+- **Monthly Reports**: Auto-generated monthly with comprehensive team analytics
 - **Platform Integration**: Auto-push to DingTalk/Feishu
 
 ### 2. Code Quality Monitoring
@@ -151,105 +155,194 @@ Score Breakdown:
 - Code change heatmap
 - HTML report viewing
 
-## Quick Start
+## Quick Start (v2 Docker Deployment)
 
-### Prerequisites
+See [QUICK_START.md](QUICK_START.md) for the complete guide.
 
-- Python 3.8+
-- Git 2.0+
-- Bash shell
-- (Optional) Nginx for web access
-
-### Installation
-
-#### 1. Clone the Repository
+### 1. Configure Environment Variables
 
 ```bash
-git clone https://github.com/yzhucn/code-health.git
-cd code-health
+cp .env.example .env
+vi .env
 ```
-
-#### 2. Install Dependencies
 
 ```bash
-pip3 install -r requirements.txt
-```
-
-#### 3. Configure Repositories
-
-**Copy configuration template:**
-
-```bash
-cp config.example.yaml config.yaml
-```
-
-**Edit `config.yaml`** and add repositories to monitor:
-
-```yaml
-# Project configuration
-project:
-  name: "Code Health Monitor"  # Customize your project name
+# Required configuration
+GIT_TOKEN=your_git_token_here
+PROJECT_NAME=My Project
 
 # Repository configuration
-repositories:
-  - path: /path/to/your/repo1
-    name: your-repo-name
-    type: java                  # Supported: java, python, vue, flutter
-    main_branch: main
+REPOSITORIES=backend|https://github.com/org/backend.git|java|main,frontend|https://github.com/org/frontend.git|vue|main
 
-notification:
-  dingtalk:
-    enabled: true
-    webhook: https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN
-    secret: YOUR_SECRET
+# DingTalk notification (optional)
+DINGTALK_ENABLED=true
+DINGTALK_WEBHOOK=https://oapi.dingtalk.com/robot/send?access_token=xxx
+DINGTALK_SECRET=SECxxx
 ```
 
-#### 4. Generate Reports
+### 2. Start Services
+
+```bash
+# Build and start
+docker-compose up -d
+
+# Manually generate daily report
+docker-compose run --rm code-health daily
+
+# View reports
+open http://localhost:8080
+```
+
+### 3. CLI Usage
+
+```bash
+# Generate daily/weekly/monthly reports
+python -m src.main daily
+python -m src.main weekly
+python -m src.main monthly --month 2025-01
+
+# Send notifications
+python -m src.main notify daily
+python -m src.main notify weekly --week 2025-W02
+```
+
+## Project Structure (v2)
+
+```
+.code-health/
+├── src/                         # v2 core code
+│   ├── main.py                  # Main entry point
+│   ├── config.py                # Configuration management
+│   ├── providers/               # Git data providers
+│   │   ├── base.py              # Provider abstract base class
+│   │   ├── generic_git.py       # Generic Git Provider (shallow clone)
+│   │   ├── github.py            # GitHub API Provider
+│   │   ├── gitlab.py            # GitLab API Provider
+│   │   └── codeup.py            # Alibaba Cloud Codeup Provider
+│   ├── analyzers/               # Analyzers
+│   │   ├── git_analyzer.py      # Git commit analysis
+│   │   ├── churn.py             # Code churn analysis
+│   │   ├── rework.py            # Rework rate analysis
+│   │   ├── hotspot.py           # Hotspot file analysis
+│   │   └── health_score.py      # Health score calculation
+│   ├── reporters/               # Report generators
+│   │   ├── base.py              # Report base class
+│   │   ├── daily.py             # Daily report generation
+│   │   ├── weekly.py            # Weekly report generation
+│   │   └── monthly.py           # Monthly report generation
+│   ├── notifiers/               # Notification modules
+│   │   ├── base.py              # Notifier base class
+│   │   ├── dingtalk.py          # DingTalk notification
+│   │   └── feishu.py            # Feishu notification
+│   └── utils/                   # Utility functions
+│       └── helpers.py
+├── config/
+│   └── config.yaml              # Configuration file
+├── scripts/                     # v1 scripts (kept for compatibility)
+├── Dockerfile
+├── docker-compose.yml
+├── entrypoint.sh
+├── nginx.conf
+├── README.md
+└── QUICK_START.md
+```
+
+## Configuration
+
+### Risk Threshold Configuration
+
+```yaml
+thresholds:
+  large_commit: 500              # Large commit threshold (lines)
+  tiny_commit: 10                # Tiny commit threshold (lines)
+
+  churn_days: 3                  # Churn detection days
+  churn_count: 5                 # Churn detection count
+
+  rework_add_days: 7             # Rework detection: within N days after code added
+  rework_delete_days: 3          # Rework detection: deleted is considered rework
+
+  hotspot_days: 7                # Hotspot file statistics days
+  hotspot_count: 10              # Hotspot modification count threshold
+  large_file: 1000               # Large file line threshold
+```
+
+### Working Hours Configuration
+
+```yaml
+working_hours:
+  normal_start: "09:00"          # Normal work start time
+  normal_end: "18:00"            # Normal work end time
+  overtime_start: "18:00"        # Overtime start time
+  overtime_end: "21:00"          # Overtime end time
+  late_night_start: "22:00"      # Late night start time
+  late_night_end: "06:00"        # Late night end time
+```
+
+See [config.example.yaml](config.example.yaml) for detailed configuration.
+
+## Usage Examples
+
+### Manual Report Generation
 
 ```bash
 cd scripts
 
 # Generate today's daily report
-./run.sh daily
+python3 daily-report.py
+
+# Generate report for specific date
+python3 daily-report.py 2026-01-01
 
 # Generate this week's weekly report
-./run.sh weekly
+python3 weekly-report.py
+
+# Generate report for specific week (ISO week format)
+python3 weekly-report.py 2026-W01
 ```
 
-## Configuration Guide
+### Convert to HTML
 
-For detailed configuration instructions, see the [中文 README](README.md#快速开始).
+```bash
+# Convert daily report
+python3 md2html.py ../reports/daily/2026-01-04.md
 
-Key configurations:
-- **Repository paths**: Absolute paths to Git repositories
-- **DingTalk/Feishu webhooks**: For notification delivery
-- **Risk thresholds**: Customize detection rules
-- **Working hours**: Define overtime and late-night work periods
-
-## Project Structure
-
+# Batch convert
+for file in ../reports/daily/*.md; do
+    python3 md2html.py "$file"
+done
 ```
-code-health/
-├── README.md                # Chinese documentation
-├── README_EN.md            # English documentation (this file)
-├── METRICS.md              # Detailed metrics documentation
-├── config.example.yaml     # Configuration template
-├── requirements.txt        # Python dependencies
-├── .gitignore             # Git ignore rules
-│
-├── scripts/               # Core scripts
-│   ├── daily-report.py    # Daily report generator
-│   ├── weekly-report.py   # Weekly report generator
-│   ├── utils.py           # Common utilities
-│   └── ...
-│
-├── reports/               # Report archives
-│   ├── daily/            # Daily reports (MD + HTML)
-│   └── weekly/           # Weekly reports (MD + HTML)
-│
-└── dashboard/            # Visualization dashboards
-    └── index.html        # Main dashboard
+
+### Generate Dashboard
+
+```bash
+# Generate 7-day dashboard
+python3 dashboard-generator-range.py 7
+
+# Generate 30-day dashboard
+python3 dashboard-generator-range.py 30
 ```
+
+### Push to DingTalk
+
+```bash
+# Push yesterday's daily report
+./send-to-dingtalk.sh
+
+# Push specific date's daily report
+./send-to-dingtalk.sh 2026-01-04
+```
+
+## Metrics Documentation
+
+See [METRICS.md](METRICS.md) for detailed metrics system, calculation methods, and risk assessment rules.
+
+Key metrics include:
+- **Code Churn Rate**: File stability indicator
+- **Rework Rate**: Wasted effort indicator
+- **Health Score**: Comprehensive code quality score (0-100)
+- **High-Risk Files**: Files with risk score > 60
+- **Working Hours Anomaly**: Overtime, late-night, weekend commit statistics
 
 ## Tech Stack
 
@@ -262,12 +355,70 @@ code-health/
 - **Web Service**: Nginx
 - **Scheduling**: Crontab
 
+## Version History
+
+### v2.0.0 (2026-01)
+
+Major update with new architecture:
+
+- ✅ Docker one-click deployment
+- ✅ Provider architecture (GitHub/GitLab/Codeup support)
+- ✅ Remote repository auto shallow clone
+- ✅ Modular Python code structure
+- ✅ Monthly report generation
+- ✅ Enhanced security (no hardcoded tokens)
+
+### v1.0.0 (2026-01-01)
+
+Initial release with core features:
+
+- ✅ Daily report auto-generation and push
+- ✅ Weekly report auto-generation and push
+- ✅ Code churn detection
+- ✅ Rework rate analysis
+- ✅ High-risk file identification
+- ✅ Working hours anomaly detection
+- ✅ Health score system
+- ✅ Visualization dashboard (5 time ranges)
+- ✅ DingTalk auto-push
+- ✅ ECS one-click deployment
+- ✅ Web access support
+
 ## Documentation
 
 - [METRICS.md](METRICS.md) - Detailed metrics documentation
 - [SECURITY.md](SECURITY.md) - Security best practices
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guide
 - [config.example.yaml](config.example.yaml) - Configuration template
+
+## FAQ
+
+### 1. Report generation failed
+
+Check if the repository path is correct and Git history is accessible:
+
+```bash
+cd /path/to/your/repo
+git log --oneline -10
+```
+
+### 2. DingTalk push failed
+
+- Check if webhook and secret are correctly configured
+- Verify network connection
+- Check DingTalk robot keyword settings
+
+### 3. Web access 404
+
+Check Nginx configuration and file permissions:
+
+```bash
+# Check Nginx config
+nginx -t
+
+# Check file permissions
+ls -la /opt/your-project/.code-health/reports/
+```
 
 ## Contributing
 
@@ -284,9 +435,7 @@ Contributions are welcome!
 - [ ] Support more notification channels (WeChat Work, Slack)
 - [ ] Integrate code coverage data
 - [ ] Integrate SonarQube quality gates
-- [ ] Add monthly reports
 - [ ] Support custom report templates
-- [ ] Provide Docker deployment
 - [ ] Add real-time monitoring alerts
 
 ## License
