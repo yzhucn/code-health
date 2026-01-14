@@ -468,6 +468,11 @@ def main():
         help='仪表盘天数 (用于 dashboard 命令)',
         default=None
     )
+    parser.add_argument(
+        '--reports-dir',
+        help='报告目录路径 (用于 dashboard 命令查找最新报告)',
+        default=None
+    )
 
     args = parser.parse_args()
 
@@ -506,7 +511,8 @@ def main():
         run_html(config, output_dir)
     elif args.command == 'dashboard':
         dashboard_output = os.path.join(output_dir, '../dashboard') if output_dir else None
-        run_dashboard(config, dashboard_output, output_dir, args.days)
+        reports_dir = args.reports_dir or output_dir
+        run_dashboard(config, dashboard_output, reports_dir, args.days)
 
 
 if __name__ == '__main__':

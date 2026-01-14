@@ -160,12 +160,53 @@ class DailyReporter(BaseReporter):
             ""
         ]
 
+        # 生成活跃开发者详情表格
         if active_authors:
-            lines.append("**活跃开发者**:")
+            # 统计每个开发者的详细数据
+            author_stats = defaultdict(lambda: {
+                'commits': 0, 'added': 0, 'deleted': 0, 'repos': set(), 'languages': set()
+            })
+            for c in all_commits:
+                author = c['author']
+                author_stats[author]['commits'] += 1
+                author_stats[author]['added'] += c['lines_added']
+                author_stats[author]['deleted'] += c['lines_deleted']
+                author_stats[author]['repos'].add(c['repo'])
+                # 推断主要语言
+                for f in c['files']:
+                    filepath = f.get('path', '')
+                    if filepath.endswith('.java'):
+                        author_stats[author]['languages'].add('Java')
+                    elif filepath.endswith('.py'):
+                        author_stats[author]['languages'].add('Python')
+                    elif filepath.endswith(('.ts', '.tsx')):
+                        author_stats[author]['languages'].add('TypeScript')
+                    elif filepath.endswith(('.js', '.jsx')):
+                        author_stats[author]['languages'].add('JavaScript')
+                    elif filepath.endswith('.vue'):
+                        author_stats[author]['languages'].add('Vue')
+                    elif filepath.endswith(('.kt', '.kts')):
+                        author_stats[author]['languages'].add('Kotlin')
+                    elif filepath.endswith('.swift'):
+                        author_stats[author]['languages'].add('Swift')
+                    elif filepath.endswith('.go'):
+                        author_stats[author]['languages'].add('Go')
+
+            lines.append("### 👥 活跃开发者详情")
             lines.append("")
-            sorted_authors = sorted(author_counts.items(), key=lambda x: x[1], reverse=True)
-            for author, count in sorted_authors:
-                lines.append(f"- {author} ({count} commits)")
+            lines.append("| 排名 | 开发者 | 提交次数 | 新增行数 | 删除行数 | 净增行数 | 主要语言 | 涉及仓库 |")
+            lines.append("|------|--------|----------|----------|----------|----------|----------|----------|")
+
+            sorted_authors = sorted(author_stats.items(), key=lambda x: x[1]['commits'], reverse=True)
+            for rank, (author, stats) in enumerate(sorted_authors, 1):
+                net = stats['added'] - stats['deleted']
+                languages = ', '.join(sorted(stats['languages'])) if stats['languages'] else '-'
+                repos = ', '.join(sorted(stats['repos']))
+                lines.append(
+                    f"| {rank} | {author} | {stats['commits']} | "
+                    f"+{stats['added']} | -{stats['deleted']} | "
+                    f"{'+' if net >= 0 else ''}{net} | {languages} | {repos} |"
+                )
             lines.append("")
 
         return '\n'.join(lines)

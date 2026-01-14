@@ -4,9 +4,25 @@
 """
 
 import os
+import re
 import glob
 from datetime import datetime
 from pathlib import Path
+
+
+def _is_valid_daily_filename(filename: str) -> bool:
+    """验证日报文件名格式 (YYYY-MM-DD)"""
+    return bool(re.match(r'^\d{4}-\d{2}-\d{2}$', filename))
+
+
+def _is_valid_weekly_filename(filename: str) -> bool:
+    """验证周报文件名格式 (YYYY-Wxx)"""
+    return bool(re.match(r'^\d{4}-W\d{2}$', filename))
+
+
+def _is_valid_monthly_filename(filename: str) -> bool:
+    """验证月报文件名格式 (YYYY-MM)"""
+    return bool(re.match(r'^\d{4}-\d{2}$', filename))
 
 
 def generate_index(reports_dir: str, project_name: str = "代码健康监控") -> str:
@@ -33,21 +49,27 @@ def generate_index(reports_dir: str, project_name: str = "代码健康监控") -
     else:
         last_year_month = f"{now.year}-{now.month - 1:02d}"
 
-    # 获取当月日报
+    # 获取当月日报 (只包含标准格式文件名)
     current_month_daily = []
     for f in sorted(daily_dir.glob('*.html'), reverse=True):
         if f.name.startswith('example'):
             continue
         date_str = f.stem
+        # 验证文件名格式
+        if not _is_valid_daily_filename(date_str):
+            continue
         if date_str[:7] == current_year_month:
             current_month_daily.append(date_str)
 
-    # 获取当年周报
+    # 获取当年周报 (只包含标准格式文件名)
     current_year_weekly = []
     for f in sorted(weekly_dir.glob('*.html'), reverse=True):
         if f.name.startswith('example'):
             continue
         week_str = f.stem
+        # 验证文件名格式
+        if not _is_valid_weekly_filename(week_str):
+            continue
         if week_str.startswith(str(now.year)):
             current_year_weekly.append(week_str)
 

@@ -130,6 +130,9 @@ main() {
             export CODE_HEALTH_OUTPUT=/app/reports
             python -m src.main daily --output /app/reports
             log_success "日报生成完成"
+            # 生成仪表盘
+            log_info "更新仪表盘..."
+            python -m src.main dashboard --output /app/reports || log_warn "仪表盘生成失败，继续执行"
             # 如果启用了通知，自动发送
             if [ "$DINGTALK_ENABLED" = "true" ] || [ "$FEISHU_ENABLED" = "true" ]; then
                 log_info "发送通知..."
@@ -143,6 +146,9 @@ main() {
             export CODE_HEALTH_OUTPUT=/app/reports
             python -m src.main weekly --output /app/reports
             log_success "周报生成完成"
+            # 生成仪表盘
+            log_info "更新仪表盘..."
+            python -m src.main dashboard --output /app/reports || log_warn "仪表盘生成失败，继续执行"
             # 如果启用了通知，自动发送
             if [ "$DINGTALK_ENABLED" = "true" ] || [ "$FEISHU_ENABLED" = "true" ]; then
                 log_info "发送通知..."
@@ -156,6 +162,9 @@ main() {
             export CODE_HEALTH_OUTPUT=/app/reports
             python -m src.main monthly --output /app/reports
             log_success "月报生成完成"
+            # 生成仪表盘
+            log_info "更新仪表盘..."
+            python -m src.main dashboard --output /app/reports || log_warn "仪表盘生成失败，继续执行"
             # 如果启用了通知，自动发送
             if [ "$DINGTALK_ENABLED" = "true" ] || [ "$FEISHU_ENABLED" = "true" ]; then
                 log_info "发送通知..."

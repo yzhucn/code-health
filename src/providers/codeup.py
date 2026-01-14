@@ -32,6 +32,7 @@ class CodeupProvider(GitProvider):
         organization_id: str = None,
         project: str = None,
         repositories: List[Dict] = None,
+        debug: bool = False,
         # 兼容旧参数 (deprecated)
         access_key_id: str = None,
         access_key_secret: str = None,
@@ -44,12 +45,15 @@ class CodeupProvider(GitProvider):
             organization_id: 云效企业 ID (优先使用 CODEUP_ORG_ID 环境变量)
             project: 项目/命名空间名称，用于自动过滤仓库 (如 "my-project")
             repositories: 指定仓库列表 (可选，如果指定则忽略 project 参数)
+            debug: 是否开启调试模式 (显示 API 响应详情)
         """
         # 从环境变量或参数获取认证信息
         self.token = token or os.environ.get('CODEUP_TOKEN', '')
         self.organization_id = organization_id or os.environ.get('CODEUP_ORG_ID', '')
         self.project = project or os.environ.get('CODEUP_PROJECT', '')
         self.repositories_config = repositories or []
+        self.debug = debug or os.environ.get('CODEUP_DEBUG', '').lower() in ('1', 'true', 'yes')
+        self._debug_shown_commit = False  # 只显示一次提交详情
 
         if not self.token:
             print("警告: 未配置云效访问令牌 (CODEUP_TOKEN)")
@@ -410,18 +414,72 @@ class CodeupProvider(GitProvider):
                 f"/organizations/{self.organization_id}/repositories/{repo_id}/commits/{commit_id}"
             )
 
+            # 调试模式：显示第一个提交的 API 响应结构
+            if self.debug and not self._debug_shown_commit and detail:
+                self._debug_shown_commit = True
+                print(f"\n[DEBUG] 提交详情 API 响应 (commit: {commit_id[:8]}...):")
+                print(f"  Keys: {list(detail.keys())}")
+                if 'diffs' in detail:
+                    print(f"  diffs: {type(detail['diffs'])}, count: {len(detail.get('diffs', []) or [])}")
+                    if detail.get('diffs'):
+                        print(f"  diffs[0] keys: {list(detail['diffs'][0].keys())}")
+                else:
+                    print("  diffs: 字段不存在")
+                if 'stats' in detail:
+                    print(f"  stats: {detail.get('stats')}")
+                if 'parentShas' in detail:
+                    print(f"  parentShas: {detail.get('parentShas')}")
+                print()
+
             files = []
             if detail:
-                # 解析文件变更
+                # 方法1: 尝试从 diffs 字段获取文件变更
                 diffs = detail.get('diffs', []) or []
                 for diff in diffs:
-                    files.append(FileChange(
-                        path=diff.get('newPath', diff.get('oldPath', '')),
-                        added=diff.get('additions', 0),
-                        deleted=diff.get('deletions', 0),
-                    ))
+                    path = diff.get('newPath', diff.get('oldPath', ''))
+                    if path:
+                        files.append(FileChange(
+                            path=path,
+                            added=diff.get('additions', 0),
+                            deleted=diff.get('deletions', 0),
+                        ))
 
-                # 如果没有 diffs，使用 stats
+                # 方法2: 如果 diffs 为空，尝试使用 ListRepositoryCommitDiff API
+                if not files:
+                    diff_data = self._api_request(
+                        f"/organizations/{self.organization_id}/repositories/{repo_id}/commits/{commit_id}/diff"
+                    )
+                    if diff_data:
+                        diff_list = diff_data if isinstance(diff_data, list) else diff_data.get('result', []) or []
+                        for diff in diff_list:
+                            path = diff.get('newPath', diff.get('oldPath', diff.get('new_path', diff.get('old_path', ''))))
+                            if path:
+                                files.append(FileChange(
+                                    path=path,
+                                    added=diff.get('additions', diff.get('addedLines', 0)),
+                                    deleted=diff.get('deletions', diff.get('deletedLines', 0)),
+                                ))
+
+                # 方法3: 如果还是没有，尝试从 parentShas 获取 compare diff
+                if not files and detail.get('parentShas'):
+                    parent_sha = detail.get('parentShas', [''])[0] if detail.get('parentShas') else ''
+                    if parent_sha:
+                        compare_data = self._api_request(
+                            f"/organizations/{self.organization_id}/repositories/{repo_id}/compare",
+                            params={'from': parent_sha, 'to': commit_id}
+                        )
+                        if compare_data:
+                            diff_list = compare_data.get('diffs', []) or compare_data.get('result', {}).get('diffs', []) or []
+                            for diff in diff_list:
+                                path = diff.get('newPath', diff.get('oldPath', ''))
+                                if path:
+                                    files.append(FileChange(
+                                        path=path,
+                                        added=diff.get('additions', 0),
+                                        deleted=diff.get('deletions', 0),
+                                    ))
+
+                # 方法4: 如果仍然没有文件信息，使用 stats
                 if not files:
                     stats = detail.get('stats', {}) or {}
                     total_added = stats.get('additions', 0)

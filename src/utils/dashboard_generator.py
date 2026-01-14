@@ -13,6 +13,49 @@ from collections import defaultdict
 from .helpers import parse_iso_datetime, format_number
 
 
+def generate_redirect_html(target_url: str, days: int, project_days: int) -> str:
+    """生成重定向页面HTML
+
+    当请求的天数超过项目实际天数时，重定向到全周期页面
+    """
+    return f'''<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0; url={target_url}">
+    <title>重定向中...</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+        }}
+        .message {{
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }}
+        .message h2 {{ color: #333; margin-bottom: 15px; }}
+        .message p {{ color: #666; margin-bottom: 20px; }}
+        .message a {{ color: #667eea; text-decoration: none; }}
+    </style>
+</head>
+<body>
+    <div class="message">
+        <h2>正在跳转...</h2>
+        <p>项目运行仅 {project_days} 天，不足 {days} 天</p>
+        <p>正在跳转到 <a href="{target_url}">项目全周期仪表盘</a></p>
+    </div>
+</body>
+</html>'''
+
+
 def get_date_range(start_date_str=None, end_date_str=None, days=None):
     """获取日期范围
 
@@ -70,9 +113,26 @@ def collect_dashboard_data(provider, start_date, end_date):
     since_time = start_date.strftime('%Y-%m-%d 00:00:00')
     until_time = (end_date + timedelta(days=1)).strftime('%Y-%m-%d 00:00:00')
 
-    commits = provider.get_commits(since_time, until_time)
+    # 获取所有仓库并收集提交
+    all_commits = []
+    repos = provider.list_repositories()
+    for repo in repos:
+        repo_commits = provider.get_commits(repo.id, since_time, until_time)
+        # 将 CommitInfo 对象转换为 dict 并添加仓库名称
+        for commit in repo_commits:
+            commit_dict = {
+                'hash': commit.hash,
+                'author': commit.author,
+                'email': commit.email,
+                'date': commit.date,
+                'message': commit.message,
+                'lines_added': commit.lines_added,
+                'lines_deleted': commit.lines_deleted,
+                'repo': repo.name
+            }
+            all_commits.append(commit_dict)
 
-    for commit in commits:
+    for commit in all_commits:
         try:
             commit_date = parse_iso_datetime(commit['date'])
             date_str = commit_date.strftime('%Y-%m-%d')
@@ -564,6 +624,16 @@ def generate_dashboard(provider, output_dir: str, reports_dir: str = None,
 
         for range_days, filename in ranges_to_generate:
             print(f"   生成 {filename} ({range_days}天)...")
+
+            # 对于60/90天，如果项目天数不足，生成重定向页面
+            if range_days >= 60 and project_days and project_days < range_days:
+                print(f"   → 项目仅 {project_days} 天，重定向到全周期页面")
+                html = generate_redirect_html('index-all.html', range_days, project_days)
+                output_file = os.path.join(output_dir, filename)
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    f.write(html)
+                generated_files.append(output_file)
+                continue
 
             # 计算实际日期范围（考虑项目起始日期）
             range_start, range_end, actual_days = get_date_range(days=range_days)
