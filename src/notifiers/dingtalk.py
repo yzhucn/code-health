@@ -342,7 +342,7 @@ class DingtalkNotifier(BaseNotifier):
             commits = c.get('commits', '0')
             net = self._format_number(c.get('net', '0'))
             c_score = c.get('score', '0')
-            top10_table += f"| {rank} | {name} | {commits} | {net} | {c_score} |\n"
+            top10_table += f"| {rank} | {name} | {commits}次 | {net}行 | {c_score} |\n"
 
         # 每周趋势表格
         weekly_table = ""
@@ -351,7 +351,7 @@ class DingtalkNotifier(BaseNotifier):
             w_commits = w.get('commits', '0')
             w_net = self._format_number(w.get('net', '0'))
             w_authors = w.get('authors', '0')
-            weekly_table += f"| {week} | {w_commits} | {w_net} | {w_authors} |\n"
+            weekly_table += f"| {week} | {w_commits}次 | {w_net}行 | {w_authors}人 |\n"
 
         # MVP 信息 (综合评分最高) - 丰富展示内容
         mvp_name = data.get('mvp_name', '')
@@ -425,8 +425,8 @@ class DingtalkNotifier(BaseNotifier):
 
 ### 🏆 TOP 10 月度贡献
 
-| 排名 | 开发者 | 提交(次) | 净增(行) | 综合分 |
-|------|--------|----------|----------|--------|
+| 排名 | 开发者 | 提交 | 净增 | 综合分 |
+|------|--------|------|------|--------|
 {top10_table}"""
 
         # 添加每周趋势 (如果有数据)
@@ -436,8 +436,8 @@ class DingtalkNotifier(BaseNotifier):
 
 ### 📊 每周趋势对比
 
-| 周期 | 提交(次) | 净增(行) | 活跃人数(人) |
-|------|----------|----------|--------------|
+| 周期 | 提交 | 净增 | 活跃人数 |
+|------|------|------|---------|
 {weekly_table}"""
 
         # 添加 MVP 和风险监控
