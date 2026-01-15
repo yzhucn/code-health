@@ -152,19 +152,33 @@ class WeeklyReporter(BaseReporter):
             author_stats[author]['repos'].add(c['repo'])
 
         # 1. 提交量排行榜
+        # 综合评分: 提交次数(30%) + 新增行数(50%) + 涉及仓库数(20%)
+        # 归一化后加权计算
         lines.append("### 🏆 贡献排行榜")
         lines.append("")
-        lines.append("| 排名 | 开发者 | 提交 | 新增 | 删除 | 净增 | 涉及仓库 |")
-        lines.append("|------|--------|------|------|------|------|----------|")
+        lines.append("| 排名 | 开发者 | 提交 | 新增 | 删除 | 净增 | 涉及仓库 | 综合分 |")
+        lines.append("|------|--------|------|------|------|------|----------|--------|")
+
+        # 计算综合评分
+        max_commits = max((s['commits'] for s in author_stats.values()), default=1)
+        max_added = max((s['added'] for s in author_stats.values()), default=1)
+        max_repos = max((len(s['repos']) for s in author_stats.values()), default=1)
+
+        def calc_score(stats):
+            commit_score = (stats['commits'] / max_commits) * 30
+            added_score = (stats['added'] / max_added) * 50
+            repo_score = (len(stats['repos']) / max_repos) * 20
+            return commit_score + added_score + repo_score
 
         sorted_authors = sorted(
             author_stats.items(),
-            key=lambda x: x[1]['added'] - x[1]['deleted'],
+            key=lambda x: calc_score(x[1]),
             reverse=True
         )
 
         for rank, (author, stats) in enumerate(sorted_authors, 1):
             net = stats['added'] - stats['deleted']
+            score = calc_score(stats)
             medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else str(rank)
             # 显示具体仓库名（最多3个）
             repos_list = list(stats['repos'])[:3]
@@ -176,7 +190,7 @@ class WeeklyReporter(BaseReporter):
                 f"+{format_number(stats['added'])} | "
                 f"-{format_number(stats['deleted'])} | "
                 f"**{'+' if net >= 0 else ''}{format_number(net)}** | "
-                f"{repos_str} |"
+                f"{repos_str} | {score:.1f} |"
             )
 
         lines.append("")

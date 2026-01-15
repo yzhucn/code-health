@@ -30,6 +30,7 @@ RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r req
 # 复制源代码
 COPY src/ ./src/
 COPY config/ ./config/
+COPY scripts/ ./scripts/
 COPY entrypoint.sh .
 
 # 创建必要目录

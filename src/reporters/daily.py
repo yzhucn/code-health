@@ -172,24 +172,30 @@ class DailyReporter(BaseReporter):
                 author_stats[author]['added'] += c['lines_added']
                 author_stats[author]['deleted'] += c['lines_deleted']
                 author_stats[author]['repos'].add(c['repo'])
+
                 # 推断主要语言
+                inferred_from_file = False
                 for f in c['files']:
                     filepath = f.get('path', '')
-                    if filepath.endswith('.java'):
+                    lang = get_language_from_file(filepath)
+                    if lang and lang not in ('Markdown', 'YAML', 'JSON', 'XML'):
+                        author_stats[author]['languages'].add(lang)
+                        inferred_from_file = True
+
+                # 如果无法从文件推断，使用仓库类型推断
+                if not inferred_from_file:
+                    repo_type = c.get('repo_type', '')
+                    if repo_type == 'java':
                         author_stats[author]['languages'].add('Java')
-                    elif filepath.endswith('.py'):
+                    elif repo_type == 'python':
                         author_stats[author]['languages'].add('Python')
-                    elif filepath.endswith(('.ts', '.tsx')):
-                        author_stats[author]['languages'].add('TypeScript')
-                    elif filepath.endswith(('.js', '.jsx')):
-                        author_stats[author]['languages'].add('JavaScript')
-                    elif filepath.endswith('.vue'):
-                        author_stats[author]['languages'].add('Vue')
-                    elif filepath.endswith(('.kt', '.kts')):
-                        author_stats[author]['languages'].add('Kotlin')
-                    elif filepath.endswith('.swift'):
+                    elif repo_type in ('vue', 'frontend'):
+                        author_stats[author]['languages'].add('Vue/JS')
+                    elif repo_type in ('android', 'flutter'):
+                        author_stats[author]['languages'].add('Dart/Kotlin')
+                    elif repo_type == 'ios':
                         author_stats[author]['languages'].add('Swift')
-                    elif filepath.endswith('.go'):
+                    elif repo_type == 'go':
                         author_stats[author]['languages'].add('Go')
 
             lines.append("### 👥 活跃开发者详情")

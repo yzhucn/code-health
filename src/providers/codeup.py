@@ -361,14 +361,15 @@ class CodeupProvider(GitProvider):
         all_commits = []
         page = 1
 
+        # Codeup API 必须指定分支，如果没有指定则使用 master
+        ref_name = branch or 'master'
+
         while True:
             params = {
                 'page': page,
                 'perPage': 100,
+                'refName': ref_name,
             }
-
-            if branch:
-                params['refName'] = branch
 
             data = self._api_request(
                 f"/organizations/{self.organization_id}/repositories/{repo_id}/commits",
@@ -460,9 +461,9 @@ class CodeupProvider(GitProvider):
                                     deleted=diff.get('deletions', diff.get('deletedLines', 0)),
                                 ))
 
-                # 方法3: 如果还是没有，尝试从 parentShas 获取 compare diff
-                if not files and detail.get('parentShas'):
-                    parent_sha = detail.get('parentShas', [''])[0] if detail.get('parentShas') else ''
+                # 方法3: 如果还是没有，尝试从 parentIds 获取 compare diff
+                if not files and detail.get('parentIds'):
+                    parent_sha = detail.get('parentIds', [''])[0] if detail.get('parentIds') else ''
                     if parent_sha:
                         compare_data = self._api_request(
                             f"/organizations/{self.organization_id}/repositories/{repo_id}/compare",

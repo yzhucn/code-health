@@ -235,7 +235,7 @@ class DingtalkNotifier(BaseNotifier):
         return content
 
     def _format_weekly_message(self, week_str: str, data: Dict) -> str:
-        """格式化周报消息 (V1兼容格式)"""
+        """格式化周报消息"""
         score = float(data.get('score', 0))
         score_level = self._get_score_level(score)
         lines = self._format_number(data.get('lines', '0'))
@@ -245,7 +245,8 @@ class DingtalkNotifier(BaseNotifier):
 
         # 构建贡献者表格
         contributor_table = ""
-        for c in data.get('contributors', [])[:5]:
+        mvp = None
+        for i, c in enumerate(data.get('contributors', [])[:5]):
             name = c.get('name', 'Unknown')
             commits = c.get('commits', '0')
             net_lines = self._format_number(c.get('net_lines', '0'))
@@ -253,6 +254,25 @@ class DingtalkNotifier(BaseNotifier):
             langs = c.get('langs', []) or self._infer_langs_from_repos(repos)
             detail_str = self._format_tech_repos(langs, repos)
             contributor_table += f"| {name} | {commits}次 | {net_lines}行 | {detail_str} |\n"
+            # 第一个就是MVP
+            if i == 0:
+                mvp = {'name': name, 'commits': commits, 'net_lines': net_lines, 'repos': repos}
+
+        # MVP 部分
+        mvp_section = ""
+        if mvp:
+            repos_str = ', '.join(mvp['repos'][:3])
+            if len(mvp['repos']) > 3:
+                repos_str += f" 等{len(mvp['repos'])}个"
+            mvp_section = f"""
+---
+
+### 🏆 本周MVP (综合评分最高)
+
+- **姓名**: {mvp['name']}
+- **提交数**: {mvp['commits']} 次
+- **净增代码**: {mvp['net_lines']} 行
+- **涉及仓库**: {repos_str if repos_str else 'N/A'}"""
 
         content = f"""## 📈 代码健康周报
 
@@ -274,7 +294,8 @@ class DingtalkNotifier(BaseNotifier):
 
 | 开发者 | 提交 | 净增代码 | 技术栈/仓库 |
 |--------|------|---------|-----------|
-{contributor_table}
+{contributor_table}{mvp_section}
+
 ---
 
 ### 🎯 健康评分
@@ -294,7 +315,7 @@ class DingtalkNotifier(BaseNotifier):
         return content
 
     def _format_monthly_message(self, month_str: str, data: Dict) -> str:
-        """格式化月报消息 (V1兼容格式)"""
+        """格式化月报消息 (丰富格式)"""
         score = float(data.get('score', 0))
         score_level = self._get_score_level(score)
         lines = self._format_number(data.get('lines', '0'))
@@ -309,53 +330,122 @@ class DingtalkNotifier(BaseNotifier):
                        "七月", "八月", "九月", "十月", "十一月", "十二月"]
         month_name = month_names[month_num] if month_num <= 12 else f"{month_num}月"
 
-        # MVP 信息
+        # 核心指标表格 - 使用 with_sign=False 避免重复符号
+        added = self._format_number(data.get('added', '0'), with_sign=False)
+        deleted = self._format_number(data.get('deleted', '0'), with_sign=False)
+
+        # TOP 10 贡献者表格
+        top10_table = ""
+        for c in data.get('contributors', [])[:10]:
+            rank = c.get('rank', '')
+            name = c.get('name', '')
+            commits = c.get('commits', '0')
+            net = self._format_number(c.get('net', '0'))
+            c_score = c.get('score', '0')
+            top10_table += f"| {rank} | {name} | {commits} | {net} | {c_score} |\n"
+
+        # 每周趋势表格
+        weekly_table = ""
+        for w in data.get('weekly_trends', []):
+            week = w.get('week', '')
+            w_commits = w.get('commits', '0')
+            w_net = self._format_number(w.get('net', '0'))
+            w_authors = w.get('authors', '0')
+            weekly_table += f"| {week} | {w_commits} | {w_net} | {w_authors} |\n"
+
+        # MVP 信息 (综合评分最高) - 丰富展示内容
         mvp_name = data.get('mvp_name', '')
         mvp_commits = data.get('mvp_commits', '0')
+        mvp_score = data.get('mvp_score', '0')
         mvp_section = ""
         if mvp_name:
+            # 从contributors中获取MVP的更多信息
+            mvp_net = '0'
+            mvp_added = '0'
+            for c in data.get('contributors', []):
+                if c.get('rank') == '🥇':
+                    mvp_net = self._format_number(c.get('net', '0'))
+                    mvp_added = self._format_number(c.get('added', '0'), with_sign=False)
+                    break
             mvp_section = f"""
 ---
 
-### 🏆 本月MVP
+### 🏆 本月MVP (综合评分最高)
 
 - **姓名**: {mvp_name}
-- **提交数**: {mvp_commits} 次"""
+- **综合分**: {mvp_score} 分
+- **提交数**: {mvp_commits} 次
+- **新增代码**: {mvp_added} 行
+- **净增代码**: {mvp_net} 行"""
 
-        # 风险信息
-        late_night = data.get('late_night', '0')
-        weekend = data.get('weekend', '0')
+        # 风险监控
+        late_night = int(data.get('late_night', 0))
+        weekend = int(data.get('weekend', 0))
+        normal_hours = int(data.get('normal_hours', 0))
+        overtime = int(data.get('overtime', 0))
+        total_commits = int(data.get('commits', 0)) or 1
+
         risk_section = ""
-        if int(late_night) > 0 or int(weekend) > 0:
+        if late_night > 0 or weekend > 0:
+            late_pct = late_night / total_commits * 100
+            weekend_pct = weekend / total_commits * 100
             risk_section = f"""
 
 ---
 
-### ⚠️ 风险提示
+### ⚠️ 风险监控
 
-- **深夜提交**: {late_night} 次
-- **周末提交**: {weekend} 次"""
+| 类型 | 次数 | 占比 |
+|------|------|------|
+| 深夜提交 | {late_night} | {late_pct:.1f}% |
+| 周末提交 | {weekend} | {weekend_pct:.1f}% |"""
 
+        # 构建完整消息
         content = f"""## 📊 代码管理 - {year}年{month_name}月报
 
 **报告周期**: {month_str} | **系统**: {self.project_name}
 
 ---
 
-### 📈 月度总览
+### 📈 核心指标
 
 | 指标 | 数值 |
 |------|------|
 | 总提交数 | {data.get('commits', '0')} 次 |
-| 代码净增 | {lines} 行 |
 | 活跃开发者 | {data.get('developers', '0')} 人 |
-| 工作日数 | {data.get('work_days', '0')} 天 |{mvp_section}
+| 活跃仓库 | {data.get('repos', '0')} 个 |
+| 代码新增 | +{added} 行 |
+| 代码删除 | -{deleted} 行 |
+| 代码净增 | {lines} 行 |
+| 工作日数 | {data.get('work_days', '0')} 天 |
+| 日均提交 | {data.get('daily_avg', '0')} 次 |
+| 健康评分 | {data.get('score', '0')} 分 {score_level} |
 
 ---
 
-### 🎯 健康评分
+### 🏆 TOP 10 月度贡献
 
-**月度健康分**: {data.get('score', '0')} 分 {score_level}{risk_section}
+| 排名 | 开发者 | 提交 | 净增 | 综合分 |
+|------|--------|------|------|--------|
+{top10_table}"""
+
+        # 添加每周趋势 (如果有数据)
+        if weekly_table:
+            content += f"""
+---
+
+### 📊 每周趋势对比
+
+| 周期 | 提交 | 净增 | 活跃人数 |
+|------|------|------|---------|
+{weekly_table}"""
+
+        # 添加 MVP 和风险监控
+        content += mvp_section
+        content += risk_section
+
+        # 添加链接和底部
+        content += f"""
 
 ---
 

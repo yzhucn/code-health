@@ -183,8 +183,13 @@ main() {
             show_config
             log_info "生成可视化仪表盘..."
             export CODE_HEALTH_OUTPUT=/app/reports
-            python -m src.main dashboard --output /app/reports
+            python -m src.main dashboard --output /app/reports --reports-dir /app/reports
             log_success "仪表盘生成完成"
+            ;;
+        debug)
+            check_env
+            log_info "运行调试脚本..."
+            python /app/scripts/debug_codeup_api.py
             ;;
         "")
             show_help

@@ -99,7 +99,7 @@ def main():
     print("-" * 40)
     commits_data = api_request(
         f"/organizations/{ORG_ID}/repositories/{repo_id}/commits",
-        params={'pageSize': 5}
+        params={'pageSize': 5, 'refName': 'master'}
     )
 
     if not commits_data:
@@ -182,24 +182,42 @@ def main():
     print()
 
     # 尝试 compare API
-    if detail and detail.get('parentShas'):
-        parent_sha = detail.get('parentShas', [''])[0]
-        if parent_sha:
-            print(f"6. 尝试 compare API")
-            print("-" * 40)
-            compare_data = api_request(
-                f"/organizations/{ORG_ID}/repositories/{repo_id}/compare",
-                params={'from': parent_sha, 'to': commit_id}
-            )
+    parent_ids = detail.get('parentIds', [])
+    if parent_ids:
+        parent_sha = parent_ids[0]
+        print(f"6. 尝试 compare API (parent: {parent_sha[:8]}...)")
+        print("-" * 40)
+        compare_data = api_request(
+            f"/organizations/{ORG_ID}/repositories/{repo_id}/compare",
+            params={'from': parent_sha, 'to': commit_id}
+        )
 
-            if not compare_data:
-                print("  compare API 失败或不可用")
-            else:
-                print(f"  API 响应类型: {type(compare_data)}")
-                print(f"  Keys: {list(compare_data.keys())}")
-                if 'diffs' in compare_data:
-                    diffs = compare_data.get('diffs', [])
-                    print(f"  diffs 数量: {len(diffs)}")
+        if not compare_data:
+            print("  compare API 失败或不可用")
+        else:
+            print(f"  API 响应类型: {type(compare_data)}")
+            print(f"  Keys: {list(compare_data.keys())}")
+            if 'diffs' in compare_data:
+                diffs = compare_data.get('diffs', [])
+                print(f"  diffs 数量: {len(diffs)}")
+                if diffs:
+                    print(f"  第一个 diff: {json.dumps(diffs[0], indent=4, ensure_ascii=False)[:500]}")
+
+    # 尝试 ListRepositoryCommitDiff API (新端点)
+    print()
+    print(f"7. 尝试 ListRepositoryCommitDiff API")
+    print("-" * 40)
+    diff_data2 = api_request(
+        f"/organizations/{ORG_ID}/repositories/{repo_id}/commits/{commit_id}/diffs"
+    )
+    if diff_data2:
+        print(f"  响应类型: {type(diff_data2)}")
+        if isinstance(diff_data2, list):
+            print(f"  diffs 数量: {len(diff_data2)}")
+        elif isinstance(diff_data2, dict):
+            print(f"  Keys: {list(diff_data2.keys())}")
+    else:
+        print("  API 不可用")
 
     print()
     print("=" * 60)
