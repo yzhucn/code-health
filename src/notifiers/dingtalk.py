@@ -397,8 +397,8 @@ class DingtalkNotifier(BaseNotifier):
 
 | 类型 | 次数 | 占比 |
 |------|------|------|
-| 深夜提交 | {late_night} | {late_pct:.1f}% |
-| 周末提交 | {weekend} | {weekend_pct:.1f}% |"""
+| 深夜提交 | {late_night}次 | {late_pct:.1f}% |
+| 周末提交 | {weekend}次 | {weekend_pct:.1f}% |"""
 
         # 构建完整消息
         content = f"""## 📊 代码管理 - {year}年{month_name}月报
