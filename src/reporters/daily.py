@@ -85,14 +85,15 @@ class DailyReporter(BaseReporter):
         Args:
             provider: Git 数据提供者
             config: 配置对象
-            report_date: 报告日期 (YYYY-MM-DD)，默认为今天
+            report_date: 报告日期 (YYYY-MM-DD)，默认为昨天
         """
         super().__init__(provider, config)
 
         if report_date:
             self.report_date = datetime.strptime(report_date, "%Y-%m-%d").date()
         else:
-            self.report_date = datetime.now().date()
+            # 默认为昨天，因为日报通常在凌晨运行，汇总前一天的提交
+            self.report_date = (datetime.now() - timedelta(days=1)).date()
 
         # 计算时间范围
         self.since_time = self.report_date.isoformat()
