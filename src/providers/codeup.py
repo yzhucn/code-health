@@ -60,13 +60,14 @@ class CodeupProvider(GitProvider):
         if not self.organization_id:
             print("警告: 未配置云效企业 ID (CODEUP_ORG_ID)")
 
-    def _api_request(self, path: str, params: Dict = None) -> Optional[Dict]:
+    def _api_request(self, path: str, params: Dict = None, silent_404: bool = False) -> Optional[Dict]:
         """
         发起 Codeup API 请求
 
         Args:
             path: API 路径 (不含 /oapi/v1/codeup 前缀)
             params: URL 查询参数
+            silent_404: 是否静默处理 404 错误
 
         Returns:
             JSON 响应数据
@@ -91,6 +92,9 @@ class CodeupProvider(GitProvider):
                 data = json.loads(response.read().decode('utf-8'))
                 return data
         except urllib.error.HTTPError as e:
+            # 404 错误通常是分支/资源不存在，可以静默处理
+            if e.code == 404 and silent_404:
+                return None
             error_body = e.read().decode('utf-8') if e.fp else ''
             print(f"Codeup API HTTP 错误: {e.code} - {e.reason}")
             if error_body:
@@ -373,7 +377,8 @@ class CodeupProvider(GitProvider):
 
             data = self._api_request(
                 f"/organizations/{self.organization_id}/repositories/{repo_id}/commits",
-                params=params
+                params=params,
+                silent_404=True  # 分支可能不存在，静默处理
             )
 
             if not data:
@@ -412,7 +417,8 @@ class CodeupProvider(GitProvider):
 
             # 获取提交详情（包含文件变更）
             detail = self._api_request(
-                f"/organizations/{self.organization_id}/repositories/{repo_id}/commits/{commit_id}"
+                f"/organizations/{self.organization_id}/repositories/{repo_id}/commits/{commit_id}",
+                silent_404=True
             )
 
             # 调试模式：显示第一个提交的 API 响应结构
@@ -448,7 +454,8 @@ class CodeupProvider(GitProvider):
                 # 方法2: 如果 diffs 为空，尝试使用 ListRepositoryCommitDiff API
                 if not files:
                     diff_data = self._api_request(
-                        f"/organizations/{self.organization_id}/repositories/{repo_id}/commits/{commit_id}/diff"
+                        f"/organizations/{self.organization_id}/repositories/{repo_id}/commits/{commit_id}/diff",
+                        silent_404=True
                     )
                     if diff_data:
                         diff_list = diff_data if isinstance(diff_data, list) else diff_data.get('result', []) or []
@@ -467,7 +474,8 @@ class CodeupProvider(GitProvider):
                     if parent_sha:
                         compare_data = self._api_request(
                             f"/organizations/{self.organization_id}/repositories/{repo_id}/compare",
-                            params={'from': parent_sha, 'to': commit_id}
+                            params={'from': parent_sha, 'to': commit_id},
+                            silent_404=True
                         )
                         if compare_data:
                             diff_list = compare_data.get('diffs', []) or compare_data.get('result', {}).get('diffs', []) or []
