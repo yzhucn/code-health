@@ -270,13 +270,29 @@ def run_notify(config: Config, report_type: str, report_path: str = None,
     if not report_path:
         base_dir = os.environ.get('CODE_HEALTH_OUTPUT', 'reports')
         if report_type == 'daily':
-            date_str = date or datetime.now().strftime("%Y-%m-%d")
+            # 默认昨天，与 daily reporter 保持一致
+            date_str = date or (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
             report_path = os.path.join(base_dir, 'daily', f"{date_str}.md")
         elif report_type == 'weekly':
-            week_str = week or datetime.now().strftime("%Y-W%V")
+            # 默认上周，与 weekly reporter 保持一致
+            if week:
+                week_str = week
+            else:
+                now = datetime.now()
+                days_since_monday = now.weekday()
+                last_monday = now - timedelta(days=days_since_monday + 7)
+                week_str = last_monday.strftime("%Y-W%V")
             report_path = os.path.join(base_dir, 'weekly', f"{week_str}.md")
         elif report_type == 'monthly':
-            month_str = month or datetime.now().strftime("%Y-%m")
+            # 默认上个月，与 monthly reporter 保持一致
+            if month:
+                month_str = month
+            else:
+                now = datetime.now()
+                if now.month == 1:
+                    month_str = f"{now.year - 1}-12"
+                else:
+                    month_str = f"{now.year}-{now.month - 1:02d}"
             report_path = os.path.join(base_dir, 'monthly', f"{month_str}.md")
 
     # 读取报告内容
@@ -309,13 +325,29 @@ def run_notify(config: Config, report_type: str, report_path: str = None,
     for name, notifier in notifiers:
         print(f"发送到 {name}...")
         if report_type == 'daily':
-            date_str = date or datetime.now().strftime("%Y-%m-%d")
+            # 默认昨天
+            date_str = date or (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
             success = notifier.send_daily_report(date_str, report_content)
         elif report_type == 'weekly':
-            week_str = week or datetime.now().strftime("%Y-W%V")
+            # 默认上周
+            if week:
+                week_str = week
+            else:
+                now = datetime.now()
+                days_since_monday = now.weekday()
+                last_monday = now - timedelta(days=days_since_monday + 7)
+                week_str = last_monday.strftime("%Y-W%V")
             success = notifier.send_weekly_report(week_str, report_content)
         elif report_type == 'monthly':
-            month_str = month or datetime.now().strftime("%Y-%m")
+            # 默认上个月
+            if month:
+                month_str = month
+            else:
+                now = datetime.now()
+                if now.month == 1:
+                    month_str = f"{now.year - 1}-12"
+                else:
+                    month_str = f"{now.year}-{now.month - 1:02d}"
             success = notifier.send_monthly_report(month_str, report_content)
 
         if success:
