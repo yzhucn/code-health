@@ -137,7 +137,8 @@ def run_daily(config: Config, date: str = None, output_dir: str = None):
         # 输出到文件
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
-            report_date = date or datetime.now().strftime("%Y-%m-%d")
+            # 使用 reporter 的日期，保持一致性
+            report_date = reporter.report_date.strftime("%Y-%m-%d")
             filepath = os.path.join(output_dir, f"{report_date}.md")
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(report)
