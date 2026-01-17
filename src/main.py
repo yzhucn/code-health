@@ -13,7 +13,7 @@ Code Health Monitor - 主入口
 
 import os
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .config import Config
 from .providers.generic_git import GenericGitProvider
