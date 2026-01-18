@@ -175,9 +175,10 @@ class DingtalkNotifier(BaseNotifier):
         report_url = f"{self.base_url}/reports/daily/{report_date}.html"
         dashboard_url = f"{self.base_url}/dashboard/index.html"
 
-        # 构建 TOP 3 开发者表格
+        # 构建开发者表格
+        top_developers = data.get('top_developers', [])
         top3_table = ""
-        for dev in data.get('top_developers', []):
+        for dev in top_developers:
             name = dev.get('name', 'Unknown')
             commits = dev.get('commits', 0)
             net_lines = self._format_number(str(dev.get('net_lines', 0)))
@@ -185,6 +186,24 @@ class DingtalkNotifier(BaseNotifier):
             langs = dev.get('langs', []) or self._infer_langs_from_repos(repos)
             detail_str = self._format_tech_repos(langs, repos)
             top3_table += f"| {name} | {commits}次 | {net_lines}行 | {detail_str} |\n"
+
+        # 根据人数调整标题
+        dev_count = len(top_developers)
+        if dev_count == 0:
+            top_section = "### 👥 今日活跃开发者\n\n暂无提交记录"
+        elif dev_count == 1:
+            top_section = f"""### 👤 今日活跃开发者
+
+| 开发者 | 提交 | 净增代码 | 技术栈/仓库 |
+|--------|------|---------|-----------|
+{top3_table}"""
+        else:
+            top_title = f"TOP {min(dev_count, 3)}" if dev_count <= 3 else "TOP 3"
+            top_section = f"""### 👥 {top_title} 活跃开发者
+
+| 开发者 | 提交 | 净增代码 | 技术栈/仓库 |
+|--------|------|---------|-----------|
+{top3_table}"""
 
         # 计算异常提交
         overtime = int(data.get('overtime', 0))
@@ -209,11 +228,7 @@ class DingtalkNotifier(BaseNotifier):
 
 ---
 
-### 👥 TOP 3 活跃开发者
-
-| 开发者 | 提交 | 净增代码 | 技术栈/仓库 |
-|--------|------|---------|-----------|
-{top3_table}
+{top_section}
 ---
 
 ### 🚨 风险指标
