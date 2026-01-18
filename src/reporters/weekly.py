@@ -77,16 +77,9 @@ class WeeklyReporter(BaseReporter):
         self.since_time = self.week_start.isoformat()
         self.until_time = (self.week_end + timedelta(days=1)).isoformat()
 
-        # 计算周数
-        jan1 = datetime(self.week_start.year, 1, 1)
-        days_to_first_monday = (7 - jan1.weekday()) % 7
-        if days_to_first_monday == 0 and jan1.weekday() != 0:
-            days_to_first_monday = 7
-        first_monday = jan1 + timedelta(days=days_to_first_monday if jan1.weekday() != 0 else 0)
-        week_start_dt = datetime.combine(self.week_start, datetime.min.time())
-        week_number = ((week_start_dt - first_monday).days // 7) + 1
-
-        self.week_str = f"{self.week_start.year}-W{week_number:02d}"
+        # 使用 ISO 周数 (isocalendar 返回 (ISO年, ISO周, 周几))
+        iso_year, iso_week, _ = self.week_start.isocalendar()
+        self.week_str = f"{iso_year}-W{iso_week:02d}"
         self.date_range_str = f"{self.week_start.strftime('%m月%d日')} - {self.week_end.strftime('%m月%d日')}"
 
     def generate(self) -> str:
