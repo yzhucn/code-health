@@ -49,16 +49,13 @@ class WeeklyReporter(BaseReporter):
         # 解析周期
         if week_str:
             if '-W' in week_str:
-                # ISO 周格式: 2025-W52
+                # ISO 周格式: 2026-W02
+                # 使用 Python 的 ISO 周格式解析，%G=ISO年，%V=ISO周，%u=周几(1=周一)
                 year, week = week_str.split('-W')
                 self.year = int(year)
                 week_num = int(week)
-                jan1 = datetime(self.year, 1, 1)
-                days_to_monday = (7 - jan1.weekday()) % 7
-                if days_to_monday == 0 and jan1.weekday() != 0:
-                    days_to_monday = 7
-                first_monday = jan1 + timedelta(days=days_to_monday if jan1.weekday() != 0 else 0)
-                week_start = first_monday + timedelta(weeks=week_num - 1)
+                # 获取该 ISO 周的周一
+                week_start = datetime.strptime(f'{year}-W{week_num:02d}-1', '%G-W%V-%u')
             else:
                 # 日期格式: 2025-12-30
                 date_obj = datetime.strptime(week_str, "%Y-%m-%d")
