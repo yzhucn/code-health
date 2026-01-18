@@ -307,7 +307,6 @@ def generate_dashboard_html(data, start_date, end_date, days_count,
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>代码健康监控仪表盘</title>
-    <script src="js/echarts.min.js"></script>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
@@ -315,6 +314,22 @@ def generate_dashboard_html(data, start_date, end_date, days_count,
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             padding: 20px; min-height: 100vh;
         }}
+        /* 加载动画 */
+        .loading-overlay {{
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 9999; transition: opacity 0.3s;
+        }}
+        .loading-overlay.hidden {{ opacity: 0; pointer-events: none; }}
+        .loading-spinner {{
+            width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3);
+            border-top-color: white; border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }}
+        .loading-text {{ color: white; margin-top: 20px; font-size: 16px; }}
+        .loading-subtext {{ color: rgba(255,255,255,0.7); margin-top: 8px; font-size: 13px; }}
+        @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
         .container {{ max-width: 1400px; margin: 0 auto; }}
         .header {{
             background: white; border-radius: 12px; padding: 30px;
@@ -379,6 +394,13 @@ def generate_dashboard_html(data, start_date, end_date, days_count,
     </style>
 </head>
 <body>
+    <!-- 加载动画 -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">正在加载图表组件...</div>
+        <div class="loading-subtext">首次加载可能需要几秒钟</div>
+    </div>
+
     <div class="container">
         <div class="header">
             <h1>📊 代码健康监控仪表盘</h1>
@@ -472,9 +494,24 @@ def generate_dashboard_html(data, start_date, end_date, days_count,
         </div>
     </div>
 
+    <!-- ECharts 加载: 本地优先，CDN备选 -->
     <script>
-        const healthChart = echarts.init(document.getElementById('healthChart'));
-        healthChart.setOption({{
+        function loadScript(src, onSuccess, onError) {{
+            var script = document.createElement('script');
+            script.src = src;
+            script.onload = onSuccess;
+            script.onerror = onError;
+            document.head.appendChild(script);
+        }}
+
+        function initCharts() {{
+            // 隐藏加载动画
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            setTimeout(function() {{ document.getElementById('loadingOverlay').style.display = 'none'; }}, 300);
+
+            // 初始化图表
+            const healthChart = echarts.init(document.getElementById('healthChart'));
+            healthChart.setOption({{
             title: {{ text: '健康分数走势', left: 'center', textStyle: {{ fontSize: 14, color: '#666' }} }},
             tooltip: {{ trigger: 'axis', formatter: function(params) {{ return params[0].name + '<br/>健康分: ' + params[0].value.toFixed(0) + ' 分'; }} }},
             xAxis: {{ type: 'category', data: {json.dumps(data['dates'])}, axisLabel: {{ rotate: 45 }} }},
@@ -559,13 +596,24 @@ def generate_dashboard_html(data, start_date, end_date, days_count,
             }}]
         }});
 
-        window.addEventListener('resize', function() {{
-            healthChart.resize(); commitsChart.resize(); linesChart.resize();
-            authorCommitsChart.resize(); authorLinesChart.resize();
-            repoChart.resize(); timeChart.resize();
-        }});
+            window.addEventListener('resize', function() {{
+                healthChart.resize(); commitsChart.resize(); linesChart.resize();
+                authorCommitsChart.resize(); authorLinesChart.resize();
+                repoChart.resize(); timeChart.resize();
+            }});
+        }} // end initCharts
 
         function handleRangeChange(value) {{ window.location.href = value; }}
+
+        // 加载 ECharts: 本地优先，bootcdn.cn 备选
+        loadScript('js/echarts.min.js', initCharts, function() {{
+            console.log('本地 ECharts 加载失败，尝试 CDN...');
+            document.querySelector('.loading-subtext').textContent = '正在从备用服务器加载...';
+            loadScript('https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js', initCharts, function() {{
+                document.querySelector('.loading-text').textContent = '加载失败';
+                document.querySelector('.loading-subtext').textContent = '请刷新页面重试';
+            }});
+        }});
     </script>
 </body>
 </html>'''
