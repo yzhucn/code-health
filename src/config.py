@@ -104,6 +104,8 @@ ENV_MAPPING = {
     'DINGTALK_ENABLED': 'notification.dingtalk.enabled',
     'DINGTALK_WEBHOOK': 'notification.dingtalk.webhook',
     'DINGTALK_SECRET': 'notification.dingtalk.secret',
+    'DINGTALK_AT_MOBILES': 'notification.dingtalk.at_mobiles',
+    'DINGTALK_AT_USERIDS': 'notification.dingtalk.at_userids',
     'FEISHU_ENABLED': 'notification.feishu.enabled',
     'FEISHU_WEBHOOK': 'notification.feishu.webhook',
 
@@ -295,6 +297,26 @@ class Config:
     @property
     def dingtalk_secret(self) -> str:
         return self.get('notification.dingtalk.secret', '')
+
+    @property
+    def dingtalk_at_mobiles(self) -> List[str]:
+        """获取钉钉 @ 人手机号列表"""
+        mobiles = self.get('notification.dingtalk.at_mobiles', '')
+        if isinstance(mobiles, str) and mobiles:
+            return [m.strip() for m in mobiles.split(',') if m.strip()]
+        elif isinstance(mobiles, list):
+            return mobiles
+        return []
+
+    @property
+    def dingtalk_at_userids(self) -> List[str]:
+        """获取钉钉 @ 人 userId 列表"""
+        userids = self.get('notification.dingtalk.at_userids', '')
+        if isinstance(userids, str) and userids:
+            return [u.strip() for u in userids.split(',') if u.strip()]
+        elif isinstance(userids, list):
+            return userids
+        return []
 
     @property
     def web_base_url(self) -> str:

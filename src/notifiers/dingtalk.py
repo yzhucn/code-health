@@ -39,6 +39,8 @@ class DingtalkNotifier(BaseNotifier):
         super().__init__(config)
         self.webhook = config.dingtalk_webhook
         self.secret = config.dingtalk_secret
+        self.at_mobiles = config.dingtalk_at_mobiles
+        self.at_userids = config.dingtalk_at_userids
 
     def is_enabled(self) -> bool:
         """检查是否启用"""
@@ -81,7 +83,7 @@ class DingtalkNotifier(BaseNotifier):
             return f"{self.webhook}&{sign_params}"
         return self.webhook
 
-    def send(self, title: str, content: str, msg_type: str = 'markdown') -> bool:
+    def send(self, title: str, content: str, msg_type: str = 'markdown', at_mobiles: list = None, at_userids: list = None) -> bool:
         """
         发送钉钉消息
 
@@ -89,6 +91,8 @@ class DingtalkNotifier(BaseNotifier):
             title: 消息标题
             content: 消息内容
             msg_type: 消息类型 (text/markdown)
+            at_mobiles: 需要 @ 的手机号列表
+            at_userids: 需要 @ 的钉钉 userId 列表
 
         Returns:
             是否发送成功
@@ -117,6 +121,16 @@ class DingtalkNotifier(BaseNotifier):
                 }
             }
 
+        # 添加 @ 人
+        if at_mobiles or at_userids:
+            payload["at"] = {
+                "isAtAll": False
+            }
+            if at_mobiles:
+                payload["at"]["atMobiles"] = at_mobiles
+            if at_userids:
+                payload["at"]["atUserIds"] = at_userids
+
         try:
             url = self._get_full_webhook()
             response = requests.post(
@@ -136,6 +150,38 @@ class DingtalkNotifier(BaseNotifier):
         except Exception as e:
             print(f"钉钉消息发送异常: {e}")
             return False
+
+    def send_daily_report(self, report_date: str, report_content: str) -> bool:
+        """
+        发送日报通知（重写基类方法，支持 @ 人）
+
+        Args:
+            report_date: 报告日期 (YYYY-MM-DD)
+            report_content: 报告内容 (Markdown)
+
+        Returns:
+            是否发送成功
+        """
+        data = self._extract_daily_data(report_content)
+        title = "代码健康日报"
+        content, has_risk = self._format_daily_message(report_date, data)
+
+        # 如果有风险且配置了 @ 人，则在消息末尾添加 @ 并发送
+        at_mobiles = None
+        at_userids = None
+        if has_risk and (self.at_mobiles or self.at_userids):
+            at_mobiles = self.at_mobiles if self.at_mobiles else None
+            at_userids = self.at_userids if self.at_userids else None
+            # 在消息末尾添加 @ 提醒（钉钉 markdown 需要在文本中包含 @手机号 或 @userId）
+            at_parts = []
+            for mobile in (self.at_mobiles or []):
+                at_parts.append(f"@{mobile}")
+            for userid in (self.at_userids or []):
+                at_parts.append(f"@{userid}")
+            if at_parts:
+                content += f"\n\n{' '.join(at_parts)}"
+
+        return self.send(title, content, at_mobiles=at_mobiles, at_userids=at_userids)
 
     def _infer_langs_from_repos(self, repos: list) -> list:
         """从仓库名称推断技术栈"""
@@ -166,14 +212,107 @@ class DingtalkNotifier(BaseNotifier):
             parts.append(f"📦 ...等{len(repos)}个")
         return '<br/>'.join(parts) if parts else "N/A"
 
-    def _format_daily_message(self, report_date: str, data: Dict) -> str:
-        """格式化日报消息 (V1兼容格式)"""
+    def _generate_daily_summary(self, data: Dict) -> str:
+        """生成日报执行摘要 - 通俗易懂的工作汇报风格"""
+        commits = int(data.get('commits', 0))
+        developers = int(data.get('developers', 0))
+        repos = int(data.get('repos', 0))
+        lines_str = str(data.get('lines', '0')).replace('+', '').replace(',', '').replace('-', '')
+        try:
+            lines = abs(int(lines_str))
+        except ValueError:
+            lines = 0
+
+        # 判断代码是净增还是净减
+        lines_raw = str(data.get('lines', '0'))
+        is_negative = lines_raw.startswith('-')
+
+        late_night = int(data.get('late_night', 0))
+        overtime = int(data.get('overtime', 0))
+        weekend = int(data.get('weekend', 0))
+
+        # 获取 MVP
+        top_developers = data.get('top_developers', [])
+        mvp_name = ""
+        mvp_commits = 0
+        if top_developers:
+            top_dev = top_developers[0]
+            mvp_name = top_dev.get('name', '')
+            mvp_commits = top_dev.get('commits', 0)
+
+        # 构建主句 - 描述今天的工作情况
+        if developers == 0:
+            main_sentence = "今天暂无代码提交。"
+        elif developers == 1:
+            if mvp_name:
+                if is_negative:
+                    main_sentence = f"今天 **{mvp_name}** 独自奋战，完成 {commits} 次提交，优化精简了 {lines} 行代码。"
+                else:
+                    main_sentence = f"今天 **{mvp_name}** 独自奋战，完成 {commits} 次提交，贡献了 {lines} 行代码。"
+            else:
+                main_sentence = f"今天 1 位同学完成了 {commits} 次提交。"
+        else:
+            if is_negative:
+                main_sentence = f"今天 **{developers}** 位同学协作，在 **{repos}** 个仓库完成 **{commits}** 次提交，优化精简了 **{lines}** 行代码。"
+            else:
+                main_sentence = f"今天 **{developers}** 位同学协作，在 **{repos}** 个仓库完成 **{commits}** 次提交，新增 **{lines}** 行代码。"
+
+        # MVP 亮点
+        mvp_sentence = ""
+        if mvp_name and developers > 1:
+            mvp_sentence = f"**{mvp_name}** 贡献最多（{mvp_commits} 次提交）。"
+
+        # 工作状态描述 - 用通俗的话
+        status_parts = []
+
+        if late_night > 0:
+            if late_night >= 5:
+                status_parts.append(f"有 {late_night} 次深夜提交，团队辛苦了")
+            else:
+                status_parts.append(f"有 {late_night} 次深夜提交")
+
+        if weekend > 0:
+            if weekend >= 5:
+                status_parts.append(f"周末加班 {weekend} 次，注意休息")
+            else:
+                status_parts.append(f"周末有 {weekend} 次提交")
+
+        if overtime > 10:
+            status_parts.append(f"晚间工作较多（{overtime} 次）")
+
+        # 组装摘要
+        summary_lines = [f"> {main_sentence}"]
+
+        if mvp_sentence:
+            summary_lines.append(f"> {mvp_sentence}")
+
+        if status_parts:
+            status_text = "；".join(status_parts) + "。"
+            summary_lines.append(f"> 📌 {status_text}")
+        elif commits > 0:
+            summary_lines.append("> ✅ 整体工作节奏正常。")
+
+        summary = "### 📋 一句话总结\n\n" + "\n>\n".join(summary_lines)
+
+        # 返回摘要和是否有风险
+        has_risk = late_night > 0 or weekend > 0
+        return summary, has_risk
+
+    def _format_daily_message(self, report_date: str, data: Dict) -> tuple:
+        """格式化日报消息 (V1兼容格式)
+
+        Returns:
+            tuple: (消息内容, 是否需要@人)
+        """
         score = float(data.get('score', 0))
         score_level = self._get_score_level(score)
         lines = self._format_number(data.get('lines', '0'))
 
         report_url = f"{self.base_url}/reports/daily/{report_date}.html"
         dashboard_url = f"{self.base_url}/dashboard/index.html"
+
+        # 生成执行摘要
+        summary, has_risk = self._generate_daily_summary(data)
 
         # 构建开发者表格
         top_developers = data.get('top_developers', [])
@@ -216,6 +355,10 @@ class DingtalkNotifier(BaseNotifier):
 
 ---
 
+{summary}
+
+---
+
 ### 📈 核心指标
 
 | 指标 | 数值 |
@@ -247,7 +390,7 @@ class DingtalkNotifier(BaseNotifier):
 
 > 🤖 由代码管理系统自动生成"""
 
-        return content
+        return content, has_risk
 
     def _format_weekly_message(self, week_str: str, data: Dict) -> str:
         """格式化周报消息"""
