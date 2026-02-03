@@ -129,7 +129,9 @@ class DingtalkNotifier(BaseNotifier):
             if at_mobiles:
                 payload["at"]["atMobiles"] = at_mobiles
             if at_userids:
+                # 钉钉 API 同时支持 atUserIds 和 atDingtalkIds，都加上确保生效
                 payload["at"]["atUserIds"] = at_userids
+                payload["at"]["atDingtalkIds"] = at_userids
 
         try:
             url = self._get_full_webhook()
@@ -166,20 +168,12 @@ class DingtalkNotifier(BaseNotifier):
         title = "代码健康日报"
         content, has_risk = self._format_daily_message(report_date, data)
 
-        # 如果有风险且配置了 @ 人，则在消息末尾添加 @ 并发送
+        # 如果有风险且配置了 @ 人，传递 at 参数给钉钉 API
         at_mobiles = None
         at_userids = None
         if has_risk and (self.at_mobiles or self.at_userids):
             at_mobiles = self.at_mobiles if self.at_mobiles else None
             at_userids = self.at_userids if self.at_userids else None
-            # 在消息末尾添加 @ 提醒（钉钉 markdown 需要在文本中包含 @手机号 或 @userId）
-            at_parts = []
-            for mobile in (self.at_mobiles or []):
-                at_parts.append(f"@{mobile}")
-            for userid in (self.at_userids or []):
-                at_parts.append(f"@{userid}")
-            if at_parts:
-                content += f"\n\n{' '.join(at_parts)}"
 
         return self.send(title, content, at_mobiles=at_mobiles, at_userids=at_userids)
 
@@ -212,8 +206,8 @@ class DingtalkNotifier(BaseNotifier):
             parts.append(f"📦 ...等{len(repos)}个")
         return '<br/>'.join(parts) if parts else "N/A"
 
-    def _generate_daily_summary(self, data: Dict) -> str:
-        """生成日报执行摘要 - 通俗易懂的工作汇报风格"""
+    def _generate_daily_summary(self, data: Dict, at_users: str = "") -> str:
+        """生成日报执行摘要 - 专业简洁风格"""
         commits = int(data.get('commits', 0))
         developers = int(data.get('developers', 0))
         repos = int(data.get('repos', 0))
@@ -240,62 +234,47 @@ class DingtalkNotifier(BaseNotifier):
             mvp_name = top_dev.get('name', '')
             mvp_commits = top_dev.get('commits', 0)
 
-        # 构建主句 - 描述今天的工作情况
+        # 构建概述 - 分行显示
         if developers == 0:
-            main_sentence = "今天暂无代码提交。"
-        elif developers == 1:
-            if mvp_name:
-                if is_negative:
-                    main_sentence = f"今天 **{mvp_name}** 独自奋战，完成 {commits} 次提交，优化精简了 {lines} 行代码。"
-                else:
-                    main_sentence = f"今天 **{mvp_name}** 独自奋战，完成 {commits} 次提交，贡献了 {lines} 行代码。"
-            else:
-                main_sentence = f"今天 1 位同学完成了 {commits} 次提交。"
+            overview_lines = ["今日无代码提交记录"]
         else:
+            overview_lines = [
+                f"👥 **参与人数**: {developers} 人",
+                f"📦 **涉及仓库**: {repos} 个",
+                f"📝 **提交次数**: {commits} 次",
+            ]
             if is_negative:
-                main_sentence = f"今天 **{developers}** 位同学协作，在 **{repos}** 个仓库完成 **{commits}** 次提交，优化精简了 **{lines}** 行代码。"
+                overview_lines.append(f"📉 **代码变更**: 优化 {lines} 行")
             else:
-                main_sentence = f"今天 **{developers}** 位同学协作，在 **{repos}** 个仓库完成 **{commits}** 次提交，新增 **{lines}** 行代码。"
+                overview_lines.append(f"📈 **代码变更**: 净增 {lines} 行")
 
-        # MVP 亮点
-        mvp_sentence = ""
-        if mvp_name and developers > 1:
-            mvp_sentence = f"**{mvp_name}** 贡献最多（{mvp_commits} 次提交）。"
+        # MVP
+        if mvp_name:
+            overview_lines.append(f"🏆 **最佳贡献**: {mvp_name}（{mvp_commits} 次提交）")
 
-        # 工作状态描述 - 用通俗的话
-        status_parts = []
-
+        # 风险提示 - 专业措辞
+        has_risk = late_night > 0 or weekend > 0
+        risk_parts = []
         if late_night > 0:
-            if late_night >= 5:
-                status_parts.append(f"有 {late_night} 次深夜提交，团队辛苦了")
-            else:
-                status_parts.append(f"有 {late_night} 次深夜提交")
-
+            risk_parts.append(f"深夜提交 {late_night} 次")
         if weekend > 0:
-            if weekend >= 5:
-                status_parts.append(f"周末加班 {weekend} 次，注意休息")
-            else:
-                status_parts.append(f"周末有 {weekend} 次提交")
+            risk_parts.append(f"周末提交 {weekend} 次")
 
-        if overtime > 10:
-            status_parts.append(f"晚间工作较多（{overtime} 次）")
+        if risk_parts:
+            risk_text = "、".join(risk_parts)
+            if at_users:
+                overview_lines.append(f"⚠️ **需关注**: {risk_text} {at_users}")
+            else:
+                overview_lines.append(f"⚠️ **需关注**: {risk_text}")
+        elif commits > 0:
+            overview_lines.append("✅ **工作状态**: 正常")
 
         # 组装摘要
-        summary_lines = [f"> {main_sentence}"]
+        summary_content = "\n".join([f"> {line}" for line in overview_lines])
+        summary = f"""### 📋 执行摘要
 
-        if mvp_sentence:
-            summary_lines.append(f"> {mvp_sentence}")
+{summary_content}"""
 
-        if status_parts:
-            status_text = "；".join(status_parts) + "。"
-            summary_lines.append(f"> 📌 {status_text}")
-        elif commits > 0:
-            summary_lines.append("> ✅ 整体工作节奏正常。")
-
-        summary = "### 📋 一句话总结\n\n" + "\n>\n".join(summary_lines)
-
-        # 返回摘要和是否有风险
-        has_risk = late_night > 0 or weekend > 0
         return summary, has_risk
 
     def _format_daily_message(self, report_date: str, data: Dict) -> tuple:
@@ -311,8 +290,16 @@ class DingtalkNotifier(BaseNotifier):
         report_url = f"{self.base_url}/reports/daily/{report_date}.html"
         dashboard_url = f"{self.base_url}/dashboard/index.html"
 
-        # 生成执行摘要
-        summary, has_risk = self._generate_daily_summary(data)
+        # 构建 @ 人文本
+        at_parts = []
+        for mobile in (self.at_mobiles or []):
+            at_parts.append(f"@{mobile}")
+        for userid in (self.at_userids or []):
+            at_parts.append(f"@{userid}")
+        at_users = " ".join(at_parts)
+
+        # 生成执行摘要（传入 @ 人文本）
+        summary, has_risk = self._generate_daily_summary(data, at_users if (self.at_mobiles or self.at_userids) else "")
 
         # 构建开发者表格
         top_developers = data.get('top_developers', [])
