@@ -224,6 +224,7 @@ class DingtalkNotifier(BaseNotifier):
         late_night = int(data.get('late_night', 0))
         overtime = int(data.get('overtime', 0))
         weekend = int(data.get('weekend', 0))
+        large_commits = int(data.get('large_commits', 0))
 
         # 获取 MVP
         top_developers = data.get('top_developers', [])
@@ -252,20 +253,34 @@ class DingtalkNotifier(BaseNotifier):
         if mvp_name:
             overview_lines.append(f"🏆 **最佳贡献**: {mvp_name}（{mvp_commits} 次提交）")
 
-        # 风险提示 - 专业措辞
-        has_risk = late_night > 0 or weekend > 0
+        # 风险判断 - 多种情况
         risk_parts = []
+
+        # 1. 深夜提交
         if late_night > 0:
             risk_parts.append(f"深夜提交 {late_night} 次")
+
+        # 2. 周末提交
         if weekend > 0:
             risk_parts.append(f"周末提交 {weekend} 次")
+
+        # 3. 加班过多（阈值：5次）
+        if overtime > 5:
+            risk_parts.append(f"加班提交 {overtime} 次")
+
+        # 4. 大提交过多（阈值：2次）
+        if large_commits >= 2:
+            risk_parts.append(f"大提交 {large_commits} 次")
+
+        # 判断是否有风险
+        has_risk = len(risk_parts) > 0
 
         if risk_parts:
             risk_text = "、".join(risk_parts)
             if at_users:
-                overview_lines.append(f"⚠️ **需关注**: {risk_text} {at_users}")
+                overview_lines.append(f"❗ **需关注**: {risk_text} {at_users}")
             else:
-                overview_lines.append(f"⚠️ **需关注**: {risk_text}")
+                overview_lines.append(f"❗ **需关注**: {risk_text}")
         elif commits > 0:
             overview_lines.append("✅ **工作状态**: 正常")
 
