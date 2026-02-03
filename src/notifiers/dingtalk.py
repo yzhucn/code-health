@@ -269,8 +269,8 @@ class DingtalkNotifier(BaseNotifier):
         elif commits > 0:
             overview_lines.append("✅ **工作状态**: 正常")
 
-        # 组装摘要
-        summary_content = "\n".join([f"> {line}" for line in overview_lines])
+        # 组装摘要 - 使用列表格式
+        summary_content = "\n".join([f"- {line}" for line in overview_lines])
         summary = f"""### 📋 执行摘要
 
 {summary_content}"""
