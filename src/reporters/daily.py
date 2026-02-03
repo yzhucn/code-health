@@ -85,14 +85,15 @@ class DailyReporter(BaseReporter):
         Args:
             provider: Git 数据提供者
             config: 配置对象
-            report_date: 报告日期 (YYYY-MM-DD)，默认为今天
+            report_date: 报告日期 (YYYY-MM-DD)，默认为昨天
         """
         super().__init__(provider, config)
 
         if report_date:
             self.report_date = datetime.strptime(report_date, "%Y-%m-%d").date()
         else:
-            self.report_date = datetime.now().date()
+            # 默认为昨天，因为日报通常在凌晨运行，汇总前一天的提交
+            self.report_date = (datetime.now() - timedelta(days=1)).date()
 
         # 计算时间范围
         self.since_time = self.report_date.isoformat()
@@ -160,12 +161,59 @@ class DailyReporter(BaseReporter):
             ""
         ]
 
+        # 生成活跃开发者详情表格
         if active_authors:
-            lines.append("**活跃开发者**:")
+            # 统计每个开发者的详细数据
+            author_stats = defaultdict(lambda: {
+                'commits': 0, 'added': 0, 'deleted': 0, 'repos': set(), 'languages': set()
+            })
+            for c in all_commits:
+                author = c['author']
+                author_stats[author]['commits'] += 1
+                author_stats[author]['added'] += c['lines_added']
+                author_stats[author]['deleted'] += c['lines_deleted']
+                author_stats[author]['repos'].add(c['repo'])
+
+                # 推断主要语言
+                inferred_from_file = False
+                for f in c['files']:
+                    filepath = f.get('path', '')
+                    lang = get_language_from_file(filepath)
+                    if lang and lang not in ('Markdown', 'YAML', 'JSON', 'XML'):
+                        author_stats[author]['languages'].add(lang)
+                        inferred_from_file = True
+
+                # 如果无法从文件推断，使用仓库类型推断
+                if not inferred_from_file:
+                    repo_type = c.get('repo_type', '')
+                    if repo_type == 'java':
+                        author_stats[author]['languages'].add('Java')
+                    elif repo_type == 'python':
+                        author_stats[author]['languages'].add('Python')
+                    elif repo_type in ('vue', 'frontend'):
+                        author_stats[author]['languages'].add('Vue/JS')
+                    elif repo_type in ('android', 'flutter'):
+                        author_stats[author]['languages'].add('Dart/Kotlin')
+                    elif repo_type == 'ios':
+                        author_stats[author]['languages'].add('Swift')
+                    elif repo_type == 'go':
+                        author_stats[author]['languages'].add('Go')
+
+            lines.append("### 👥 活跃开发者详情")
             lines.append("")
-            sorted_authors = sorted(author_counts.items(), key=lambda x: x[1], reverse=True)
-            for author, count in sorted_authors:
-                lines.append(f"- {author} ({count} commits)")
+            lines.append("| 排名 | 开发者 | 提交次数 | 新增行数 | 删除行数 | 净增行数 | 主要语言 | 涉及仓库 |")
+            lines.append("|------|--------|----------|----------|----------|----------|----------|----------|")
+
+            sorted_authors = sorted(author_stats.items(), key=lambda x: x[1]['commits'], reverse=True)
+            for rank, (author, stats) in enumerate(sorted_authors, 1):
+                net = stats['added'] - stats['deleted']
+                languages = ', '.join(sorted(stats['languages'])) if stats['languages'] else '-'
+                repos = ', '.join(sorted(stats['repos']))
+                lines.append(
+                    f"| {rank} | {author} | {stats['commits']} | "
+                    f"+{stats['added']} | -{stats['deleted']} | "
+                    f"{'+' if net >= 0 else ''}{net} | {languages} | {repos} |"
+                )
             lines.append("")
 
         return '\n'.join(lines)

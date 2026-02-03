@@ -117,6 +117,7 @@ show_config() {
 # 主函数
 main() {
     local cmd="${1:-}"
+    shift 2>/dev/null || true  # 移除第一个参数，保留剩余参数
 
     case "$cmd" in
         --help|-h|help)
@@ -128,10 +129,13 @@ main() {
             show_config
             log_info "开始生成日报..."
             export CODE_HEALTH_OUTPUT=/app/reports
-            python -m src.main daily --output /app/reports
+            python -m src.main daily --output /app/reports "$@"
             log_success "日报生成完成"
-            # 如果启用了通知，自动发送
-            if [ "$DINGTALK_ENABLED" = "true" ] || [ "$FEISHU_ENABLED" = "true" ]; then
+            # 生成仪表盘
+            log_info "更新仪表盘..."
+            python -m src.main dashboard --output /app/reports --reports-dir /app/reports || log_warn "仪表盘生成失败，继续执行"
+            # 如果启用了通知，自动发送（只在不指定日期时发送）
+            if [ -z "$1" ] && ([ "$DINGTALK_ENABLED" = "true" ] || [ "$FEISHU_ENABLED" = "true" ]); then
                 log_info "发送通知..."
                 python -m src.main notify daily
             fi
@@ -141,10 +145,13 @@ main() {
             show_config
             log_info "开始生成周报..."
             export CODE_HEALTH_OUTPUT=/app/reports
-            python -m src.main weekly --output /app/reports
+            python -m src.main weekly --output /app/reports "$@"
             log_success "周报生成完成"
-            # 如果启用了通知，自动发送
-            if [ "$DINGTALK_ENABLED" = "true" ] || [ "$FEISHU_ENABLED" = "true" ]; then
+            # 生成仪表盘
+            log_info "更新仪表盘..."
+            python -m src.main dashboard --output /app/reports --reports-dir /app/reports || log_warn "仪表盘生成失败，继续执行"
+            # 如果启用了通知，自动发送（只在不指定周时发送）
+            if [ -z "$1" ] && ([ "$DINGTALK_ENABLED" = "true" ] || [ "$FEISHU_ENABLED" = "true" ]); then
                 log_info "发送通知..."
                 python -m src.main notify weekly
             fi
@@ -154,10 +161,13 @@ main() {
             show_config
             log_info "开始生成月报..."
             export CODE_HEALTH_OUTPUT=/app/reports
-            python -m src.main monthly --output /app/reports
+            python -m src.main monthly --output /app/reports "$@"
             log_success "月报生成完成"
-            # 如果启用了通知，自动发送
-            if [ "$DINGTALK_ENABLED" = "true" ] || [ "$FEISHU_ENABLED" = "true" ]; then
+            # 生成仪表盘
+            log_info "更新仪表盘..."
+            python -m src.main dashboard --output /app/reports --reports-dir /app/reports || log_warn "仪表盘生成失败，继续执行"
+            # 如果启用了通知，自动发送（只在不指定月时发送）
+            if [ -z "$1" ] && ([ "$DINGTALK_ENABLED" = "true" ] || [ "$FEISHU_ENABLED" = "true" ]); then
                 log_info "发送通知..."
                 python -m src.main notify monthly
             fi
@@ -173,8 +183,13 @@ main() {
             show_config
             log_info "生成可视化仪表盘..."
             export CODE_HEALTH_OUTPUT=/app/reports
-            python -m src.main dashboard --output /app/reports
+            python -m src.main dashboard --output /app/reports --reports-dir /app/reports
             log_success "仪表盘生成完成"
+            ;;
+        debug)
+            check_env
+            log_info "运行调试脚本..."
+            python /app/scripts/debug_codeup_api.py
             ;;
         "")
             show_help

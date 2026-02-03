@@ -13,6 +13,49 @@ from collections import defaultdict
 from .helpers import parse_iso_datetime, format_number
 
 
+def generate_redirect_html(target_url: str, days: int, project_days: int) -> str:
+    """生成重定向页面HTML
+
+    当请求的天数超过项目实际天数时，重定向到全周期页面
+    """
+    return f'''<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0; url={target_url}">
+    <title>重定向中...</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+        }}
+        .message {{
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }}
+        .message h2 {{ color: #333; margin-bottom: 15px; }}
+        .message p {{ color: #666; margin-bottom: 20px; }}
+        .message a {{ color: #667eea; text-decoration: none; }}
+    </style>
+</head>
+<body>
+    <div class="message">
+        <h2>正在跳转...</h2>
+        <p>项目运行仅 {project_days} 天，不足 {days} 天</p>
+        <p>正在跳转到 <a href="{target_url}">项目全周期仪表盘</a></p>
+    </div>
+</body>
+</html>'''
+
+
 def get_date_range(start_date_str=None, end_date_str=None, days=None):
     """获取日期范围
 
@@ -70,9 +113,26 @@ def collect_dashboard_data(provider, start_date, end_date):
     since_time = start_date.strftime('%Y-%m-%d 00:00:00')
     until_time = (end_date + timedelta(days=1)).strftime('%Y-%m-%d 00:00:00')
 
-    commits = provider.get_commits(since_time, until_time)
+    # 获取所有仓库并收集提交
+    all_commits = []
+    repos = provider.list_repositories()
+    for repo in repos:
+        repo_commits = provider.get_commits(repo.id, since_time, until_time)
+        # 将 CommitInfo 对象转换为 dict 并添加仓库名称
+        for commit in repo_commits:
+            commit_dict = {
+                'hash': commit.hash,
+                'author': commit.author,
+                'email': commit.email,
+                'date': commit.date,
+                'message': commit.message,
+                'lines_added': commit.lines_added,
+                'lines_deleted': commit.lines_deleted,
+                'repo': repo.name
+            }
+            all_commits.append(commit_dict)
 
-    for commit in commits:
+    for commit in all_commits:
         try:
             commit_date = parse_iso_datetime(commit['date'])
             date_str = commit_date.strftime('%Y-%m-%d')
@@ -247,7 +307,6 @@ def generate_dashboard_html(data, start_date, end_date, days_count,
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>代码健康监控仪表盘</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
@@ -255,6 +314,22 @@ def generate_dashboard_html(data, start_date, end_date, days_count,
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             padding: 20px; min-height: 100vh;
         }}
+        /* 加载动画 */
+        .loading-overlay {{
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 9999; transition: opacity 0.3s;
+        }}
+        .loading-overlay.hidden {{ opacity: 0; pointer-events: none; }}
+        .loading-spinner {{
+            width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.3);
+            border-top-color: white; border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }}
+        .loading-text {{ color: white; margin-top: 20px; font-size: 16px; }}
+        .loading-subtext {{ color: rgba(255,255,255,0.7); margin-top: 8px; font-size: 13px; }}
+        @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
         .container {{ max-width: 1400px; margin: 0 auto; }}
         .header {{
             background: white; border-radius: 12px; padding: 30px;
@@ -319,6 +394,13 @@ def generate_dashboard_html(data, start_date, end_date, days_count,
     </style>
 </head>
 <body>
+    <!-- 加载动画 -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">正在加载图表组件...</div>
+        <div class="loading-subtext">首次加载可能需要几秒钟</div>
+    </div>
+
     <div class="container">
         <div class="header">
             <h1>📊 代码健康监控仪表盘</h1>
@@ -412,9 +494,24 @@ def generate_dashboard_html(data, start_date, end_date, days_count,
         </div>
     </div>
 
+    <!-- ECharts 加载: 本地优先，CDN备选 -->
     <script>
-        const healthChart = echarts.init(document.getElementById('healthChart'));
-        healthChart.setOption({{
+        function loadScript(src, onSuccess, onError) {{
+            var script = document.createElement('script');
+            script.src = src;
+            script.onload = onSuccess;
+            script.onerror = onError;
+            document.head.appendChild(script);
+        }}
+
+        function initCharts() {{
+            // 隐藏加载动画
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            setTimeout(function() {{ document.getElementById('loadingOverlay').style.display = 'none'; }}, 300);
+
+            // 初始化图表
+            const healthChart = echarts.init(document.getElementById('healthChart'));
+            healthChart.setOption({{
             title: {{ text: '健康分数走势', left: 'center', textStyle: {{ fontSize: 14, color: '#666' }} }},
             tooltip: {{ trigger: 'axis', formatter: function(params) {{ return params[0].name + '<br/>健康分: ' + params[0].value.toFixed(0) + ' 分'; }} }},
             xAxis: {{ type: 'category', data: {json.dumps(data['dates'])}, axisLabel: {{ rotate: 45 }} }},
@@ -499,13 +596,24 @@ def generate_dashboard_html(data, start_date, end_date, days_count,
             }}]
         }});
 
-        window.addEventListener('resize', function() {{
-            healthChart.resize(); commitsChart.resize(); linesChart.resize();
-            authorCommitsChart.resize(); authorLinesChart.resize();
-            repoChart.resize(); timeChart.resize();
-        }});
+            window.addEventListener('resize', function() {{
+                healthChart.resize(); commitsChart.resize(); linesChart.resize();
+                authorCommitsChart.resize(); authorLinesChart.resize();
+                repoChart.resize(); timeChart.resize();
+            }});
+        }} // end initCharts
 
         function handleRangeChange(value) {{ window.location.href = value; }}
+
+        // 加载 ECharts: 本地优先，bootcdn.cn 备选
+        loadScript('js/echarts.min.js', initCharts, function() {{
+            console.log('本地 ECharts 加载失败，尝试 CDN...');
+            document.querySelector('.loading-subtext').textContent = '正在从备用服务器加载...';
+            loadScript('https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js', initCharts, function() {{
+                document.querySelector('.loading-text').textContent = '加载失败';
+                document.querySelector('.loading-subtext').textContent = '请刷新页面重试';
+            }});
+        }});
     </script>
 </body>
 </html>'''
@@ -564,6 +672,16 @@ def generate_dashboard(provider, output_dir: str, reports_dir: str = None,
 
         for range_days, filename in ranges_to_generate:
             print(f"   生成 {filename} ({range_days}天)...")
+
+            # 对于60/90天，如果项目天数不足，生成重定向页面
+            if range_days >= 60 and project_days and project_days < range_days:
+                print(f"   → 项目仅 {project_days} 天，重定向到全周期页面")
+                html = generate_redirect_html('index-all.html', range_days, project_days)
+                output_file = os.path.join(output_dir, filename)
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    f.write(html)
+                generated_files.append(output_file)
+                continue
 
             # 计算实际日期范围（考虑项目起始日期）
             range_start, range_end, actual_days = get_date_range(days=range_days)

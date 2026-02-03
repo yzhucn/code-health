@@ -189,19 +189,32 @@ class MonthlyReporter(BaseReporter):
             author_stats[author]['repos'].add(c['repo'])
 
         # 贡献排行榜
+        # 综合评分: 提交次数(30%) + 新增行数(50%) + 涉及仓库数(20%)
         lines.append("### 🏆 贡献排行榜")
         lines.append("")
-        lines.append("| 排名 | 开发者 | 提交 | 新增 | 删除 | 净增 | 涉及仓库 |")
-        lines.append("|------|--------|------|------|------|------|----------|")
+        lines.append("| 排名 | 开发者 | 提交 | 新增 | 删除 | 净增 | 涉及仓库 | 综合分 |")
+        lines.append("|------|--------|------|------|------|------|----------|--------|")
 
-        sorted_authors = sorted(author_stats.items(), key=lambda x: x[1]['commits'], reverse=True)
+        # 计算综合评分
+        max_commits = max((s['commits'] for s in author_stats.values()), default=1)
+        max_added = max((s['added'] for s in author_stats.values()), default=1)
+        max_repos = max((len(s['repos']) for s in author_stats.values()), default=1)
+
+        def calc_score(stats):
+            commit_score = (stats['commits'] / max_commits) * 30
+            added_score = (stats['added'] / max_added) * 50
+            repo_score = (len(stats['repos']) / max_repos) * 20
+            return commit_score + added_score + repo_score
+
+        sorted_authors = sorted(author_stats.items(), key=lambda x: calc_score(x[1]), reverse=True)
         for rank, (author, stats) in enumerate(sorted_authors[:10], 1):
             medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else str(rank)
             net = stats['added'] - stats['deleted']
+            score = calc_score(stats)
             lines.append(
                 f"| {medal} | {author} | {stats['commits']} | "
                 f"{format_number(stats['added'])} | {format_number(stats['deleted'])} | "
-                f"{'+' if net >= 0 else ''}{format_number(net)} | {len(stats['repos'])} |"
+                f"{'+' if net >= 0 else ''}{format_number(net)} | {len(stats['repos'])} | {score:.1f} |"
             )
 
         # 仓库贡献统计
@@ -235,28 +248,32 @@ class MonthlyReporter(BaseReporter):
         for c in all_commits:
             try:
                 commit_date = datetime.strptime(c['date'][:10], '%Y-%m-%d')
-                # 计算周数
+                # 计算周的起始和结束日期
                 days_since_monday = commit_date.weekday()
                 week_start = commit_date - timedelta(days=days_since_monday)
-                week_key = week_start.strftime("%m/%d")
+                week_end = week_start + timedelta(days=6)
+                # 格式: "12/30-01/05"
+                week_key = f"{week_start.strftime('%m/%d')}-{week_end.strftime('%m/%d')}"
 
                 weekly_stats[week_key]['commits'] += 1
                 weekly_stats[week_key]['added'] += c['lines_added']
                 weekly_stats[week_key]['deleted'] += c['lines_deleted']
                 weekly_stats[week_key]['authors'].add(c['author'])
+                weekly_stats[week_key]['start'] = week_start  # 用于排序
             except Exception:
                 pass
 
         lines.append("### 📊 每周趋势")
         lines.append("")
-        lines.append("| 周起始 | 提交 | 新增 | 删除 | 净增 | 活跃人数 |")
-        lines.append("|--------|------|------|------|------|---------|")
+        lines.append("| 周期 | 提交 | 新增 | 删除 | 净增 | 活跃人数 |")
+        lines.append("|------|------|------|------|------|---------|")
 
-        for week in sorted(weekly_stats.keys()):
-            stats = weekly_stats[week]
+        # 按周起始日期排序
+        sorted_weeks = sorted(weekly_stats.items(), key=lambda x: x[1].get('start', datetime.min))
+        for week_key, stats in sorted_weeks:
             net = stats['added'] - stats['deleted']
             lines.append(
-                f"| {week} | {stats['commits']} | "
+                f"| {week_key} | {stats['commits']} | "
                 f"{format_number(stats['added'])} | {format_number(stats['deleted'])} | "
                 f"{'+' if net >= 0 else ''}{format_number(net)} | {len(stats['authors'])} |"
             )

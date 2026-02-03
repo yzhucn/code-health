@@ -243,6 +243,7 @@ class BaseNotifier(ABC):
             data['score'] = match.group(1)
 
         # 提取贡献排行榜（TOP 5）
+        # 表格格式: | 排名 | 开发者 | 提交 | 新增 | 删除 | 净增 | 涉及仓库 | 综合分 |
         lines = content.split('\n')
         in_table = False
         for line in lines:
@@ -251,38 +252,29 @@ class BaseNotifier(ABC):
                 continue
             if in_table and line.startswith('| ') and not line.startswith('| 排名') and not line.startswith('|---'):
                 parts = [p.strip() for p in line.split('|')]
-                if len(parts) >= 7:
+                # parts: ['', 排名, 开发者, 提交, 新增, 删除, 净增, 涉及仓库, 综合分, '']
+                if len(parts) >= 9:
                     try:
                         rank = parts[1]
                         if rank.isdigit() or rank in ['🥇', '🥈', '🥉', '1', '2', '3', '4', '5']:
-                            # 找到净增行数列 (包含 ** 标记或 + 号)
-                            net_lines_idx = -1
-                            for i, p in enumerate(parts):
-                                if '**' in p or ('+' in p and i > 3):
-                                    net_lines_idx = i
-                                    break
-
-                            # 找到仓库列 (最后一个非空列，通常是最后一列)
-                            repos_idx = len(parts) - 2  # 倒数第二个 (最后一个是空的)
-                            repos_str = parts[repos_idx] if repos_idx > 0 else ''
-
-                            # 提取净增行数
-                            net_lines = '0'
-                            if net_lines_idx > 0:
-                                net_lines = parts[net_lines_idx].replace('**', '').replace('+', '').replace(',', '')
+                            # 固定列索引
+                            name = parts[2]
+                            commits = parts[3]
+                            net_lines_str = parts[6].replace('**', '').replace('+', '').replace(',', '').replace('-', '')
+                            repos_str = parts[7] if len(parts) > 7 else ''
 
                             # 提取仓库列表
                             repos = []
                             if repos_str and repos_str != 'N/A':
-                                # 移除"等N个"和"X个"后缀
-                                repos_str = re.sub(r'\s*等?\d+个$', '', repos_str)
+                                # 移除"等N个"后缀
+                                repos_str = re.sub(r'\s*等\d+个$', '', repos_str)
                                 repos = [r.strip() for r in repos_str.split(',') if r.strip()]
 
                             contributor = {
                                 'rank': rank.replace('🥇', '1').replace('🥈', '2').replace('🥉', '3'),
-                                'name': parts[2],
-                                'commits': parts[3],
-                                'net_lines': net_lines,
+                                'name': name,
+                                'commits': commits,
+                                'net_lines': net_lines_str,
                                 'repos': repos,
                                 'langs': [],
                             }
@@ -299,65 +291,176 @@ class BaseNotifier(ABC):
         data = {
             'commits': '0',
             'developers': '0',
+            'repos': '0',
             'lines': '+0',
+            'added': '0',
+            'deleted': '0',
             'score': '0',
             'work_days': '0',
+            'daily_avg': '0',
+            'most_active_day': '',
             'mvp_name': '',
             'mvp_commits': '0',
+            'mvp_score': '0',
             'late_night': '0',
             'weekend': '0',
+            'normal_hours': '0',
+            'overtime': '0',
+            'contributors': [],
+            'weekly_trends': [],
         }
 
         # 提取总提交次数
-        match = re.search(r'\| 总提交次数 \| \*\*(\d+)\*\*', content)
+        match = re.search(r'\| 总提交次数 \| \*\*([,\d]+)\*\*', content)
         if match:
-            data['commits'] = match.group(1)
+            data['commits'] = match.group(1).replace(',', '')
 
         # 提取活跃开发者
         match = re.search(r'\| 活跃开发者 \| \*\*(\d+)\*\*', content)
         if match:
             data['developers'] = match.group(1)
 
+        # 提取活跃仓库
+        match = re.search(r'\| 活跃仓库 \| \*\*(\d+)\*\*', content)
+        if match:
+            data['repos'] = match.group(1)
+
+        # 提取代码新增
+        match = re.search(r'\| 代码新增 \| \*\*([,\d]+)\*\*', content)
+        if match:
+            data['added'] = match.group(1).replace(',', '')
+
+        # 提取代码删除
+        match = re.search(r'\| 代码删除 \| \*\*([,\d]+)\*\*', content)
+        if match:
+            data['deleted'] = match.group(1).replace(',', '')
+
         # 提取代码净增
-        match = re.search(r'\| 代码净增 \| \*\*([+-]?[\d,]+)\*\*', content)
+        match = re.search(r'\| 代码净增 \| \*\*([+-]?[,\d]+)\*\*', content)
         if match:
             data['lines'] = match.group(1).replace(',', '')
 
-        # 提取健康分 (支持多种格式)
-        match = re.search(r'(?:综合健康分|平均健康分).*?:\s*([\d.]+)', content)
+        # 提取日均提交量
+        match = re.search(r'\| 日均提交量 \| \*\*([\d.]+)\*\*', content)
+        if match:
+            data['daily_avg'] = match.group(1)
+
+        # 提取最活跃日
+        match = re.search(r'\| 最活跃日 \| ([^|]+) \|', content)
+        if match:
+            data['most_active_day'] = match.group(1).strip()
+
+        # 提取健康分
+        match = re.search(r'(?:综合健康分|月度健康分).*?:\s*([\d.]+)', content)
         if match:
             data['score'] = match.group(1)
 
-        # 提取工作日 (支持多种格式: "工作日数: 23 天" 或 "**工作日数**: 23 天")
-        match = re.search(r'\*?\*?工作日(?:数)?\*?\*?:\s*(\d+)\s*天', content)
+        # 提取工作日
+        match = re.search(r'工作日[^:]*:\s*(\d+)', content)
         if match:
             data['work_days'] = match.group(1)
 
-        # 提取 MVP 信息 (🥇 排名第一的贡献者)
-        match = re.search(r'\| 🥇 \| ([^|]+) \| (\d+)', content)
+        # 提取工作时间分布
+        match = re.search(r'正常工作时间[^|]*\|\s*(\d+)', content)
         if match:
-            data['mvp_name'] = match.group(1).strip()
-            data['mvp_commits'] = match.group(2)
-
-        # 提取深夜提交数
-        match = re.search(r'深夜(?:时间|提交)[^|]*\|\s*(\d+)', content)
+            data['normal_hours'] = match.group(1)
+        match = re.search(r'加班时间[^|]*\|\s*(\d+)', content)
+        if match:
+            data['overtime'] = match.group(1)
+        match = re.search(r'深夜时间[^|]*\|\s*(\d+)', content)
         if match:
             data['late_night'] = match.group(1)
-
-        # 提取周末提交数
-        match = re.search(r'周末(?:时间|提交)[^|]*\|\s*(\d+)', content)
+        match = re.search(r'周末时间[^|]*\|\s*(\d+)', content)
         if match:
             data['weekend'] = match.group(1)
 
+        # 提取 TOP 10 贡献者 (表格格式: | 排名 | 开发者 | 提交 | 新增 | 删除 | 净增 | 涉及仓库 | 综合分 |)
+        lines = content.split('\n')
+        in_table = False
+        for line in lines:
+            if '贡献排行榜' in line:
+                in_table = True
+                continue
+            if in_table and line.startswith('| ') and not line.startswith('| 排名') and not line.startswith('|---'):
+                parts = [p.strip() for p in line.split('|')]
+                if len(parts) >= 9:
+                    try:
+                        rank = parts[1]
+                        name = parts[2]
+                        commits = parts[3]
+                        added = parts[4].replace('+', '').replace(',', '')
+                        deleted = parts[5].replace('-', '').replace(',', '')
+                        net = parts[6].replace('**', '').replace('+', '').replace(',', '')
+                        score = parts[8] if len(parts) > 8 else '0'
+
+                        contributor = {
+                            'rank': rank,
+                            'name': name,
+                            'commits': commits,
+                            'added': added,
+                            'deleted': deleted,
+                            'net': net,
+                            'score': score,
+                        }
+                        data['contributors'].append(contributor)
+
+                        # MVP 是第一个 (🥇)
+                        if rank == '🥇':
+                            data['mvp_name'] = name
+                            data['mvp_commits'] = commits
+                            data['mvp_score'] = score
+
+                        if len(data['contributors']) >= 10:
+                            break
+                    except (IndexError, ValueError):
+                        pass
+            elif in_table and line.startswith('## '):
+                break
+
+        # 提取每周趋势
+        in_weekly = False
+        for line in lines:
+            if '每周趋势' in line:
+                in_weekly = True
+                continue
+            if in_weekly and line.startswith('| ') and not line.startswith('| 周') and not line.startswith('|---'):
+                parts = [p.strip() for p in line.split('|')]
+                if len(parts) >= 6:
+                    try:
+                        week_data = {
+                            'week': parts[1],
+                            'commits': parts[2],
+                            'added': parts[3].replace('+', '').replace(',', ''),
+                            'net': parts[5].replace('+', '').replace(',', '').replace('**', ''),
+                            'authors': parts[6] if len(parts) > 6 else '0',
+                        }
+                        data['weekly_trends'].append(week_data)
+                    except (IndexError, ValueError):
+                        pass
+            elif in_weekly and line.startswith('## '):
+                break
+
         return data
 
-    def _format_number(self, num_str: str) -> str:
-        """格式化数字，添加千分位"""
+    def _format_number(self, num_str: str, with_sign: bool = True) -> str:
+        """格式化数字，添加千分位
+
+        Args:
+            num_str: 数字字符串
+            with_sign: 是否添加正负号前缀，默认True
+        """
         try:
+            # 检查原始是否为负数
+            is_negative = num_str.strip().startswith('-')
             num = int(num_str.replace(',', '').replace('+', '').replace('-', ''))
-            prefix = '+' if not num_str.startswith('-') and num > 0 else ''
             formatted = f"{num:,}"
-            return f"{prefix}{formatted}"
+
+            if with_sign:
+                if is_negative:
+                    return f"-{formatted}"
+                elif num > 0:
+                    return f"+{formatted}"
+            return formatted
         except ValueError:
             return num_str
 

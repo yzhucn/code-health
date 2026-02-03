@@ -49,16 +49,13 @@ class WeeklyReporter(BaseReporter):
         # 解析周期
         if week_str:
             if '-W' in week_str:
-                # ISO 周格式: 2025-W52
+                # ISO 周格式: 2026-W02
+                # 使用 Python 的 ISO 周格式解析，%G=ISO年，%V=ISO周，%u=周几(1=周一)
                 year, week = week_str.split('-W')
                 self.year = int(year)
                 week_num = int(week)
-                jan1 = datetime(self.year, 1, 1)
-                days_to_monday = (7 - jan1.weekday()) % 7
-                if days_to_monday == 0 and jan1.weekday() != 0:
-                    days_to_monday = 7
-                first_monday = jan1 + timedelta(days=days_to_monday if jan1.weekday() != 0 else 0)
-                week_start = first_monday + timedelta(weeks=week_num - 1)
+                # 获取该 ISO 周的周一
+                week_start = datetime.strptime(f'{year}-W{week_num:02d}-1', '%G-W%V-%u')
             else:
                 # 日期格式: 2025-12-30
                 date_obj = datetime.strptime(week_str, "%Y-%m-%d")
@@ -80,16 +77,9 @@ class WeeklyReporter(BaseReporter):
         self.since_time = self.week_start.isoformat()
         self.until_time = (self.week_end + timedelta(days=1)).isoformat()
 
-        # 计算周数
-        jan1 = datetime(self.week_start.year, 1, 1)
-        days_to_first_monday = (7 - jan1.weekday()) % 7
-        if days_to_first_monday == 0 and jan1.weekday() != 0:
-            days_to_first_monday = 7
-        first_monday = jan1 + timedelta(days=days_to_first_monday if jan1.weekday() != 0 else 0)
-        week_start_dt = datetime.combine(self.week_start, datetime.min.time())
-        week_number = ((week_start_dt - first_monday).days // 7) + 1
-
-        self.week_str = f"{self.week_start.year}-W{week_number:02d}"
+        # 使用 ISO 周数 (isocalendar 返回 (ISO年, ISO周, 周几))
+        iso_year, iso_week, _ = self.week_start.isocalendar()
+        self.week_str = f"{iso_year}-W{iso_week:02d}"
         self.date_range_str = f"{self.week_start.strftime('%m月%d日')} - {self.week_end.strftime('%m月%d日')}"
 
     def generate(self) -> str:
@@ -152,19 +142,33 @@ class WeeklyReporter(BaseReporter):
             author_stats[author]['repos'].add(c['repo'])
 
         # 1. 提交量排行榜
+        # 综合评分: 提交次数(30%) + 新增行数(50%) + 涉及仓库数(20%)
+        # 归一化后加权计算
         lines.append("### 🏆 贡献排行榜")
         lines.append("")
-        lines.append("| 排名 | 开发者 | 提交 | 新增 | 删除 | 净增 | 涉及仓库 |")
-        lines.append("|------|--------|------|------|------|------|----------|")
+        lines.append("| 排名 | 开发者 | 提交 | 新增 | 删除 | 净增 | 涉及仓库 | 综合分 |")
+        lines.append("|------|--------|------|------|------|------|----------|--------|")
+
+        # 计算综合评分
+        max_commits = max((s['commits'] for s in author_stats.values()), default=1)
+        max_added = max((s['added'] for s in author_stats.values()), default=1)
+        max_repos = max((len(s['repos']) for s in author_stats.values()), default=1)
+
+        def calc_score(stats):
+            commit_score = (stats['commits'] / max_commits) * 30
+            added_score = (stats['added'] / max_added) * 50
+            repo_score = (len(stats['repos']) / max_repos) * 20
+            return commit_score + added_score + repo_score
 
         sorted_authors = sorted(
             author_stats.items(),
-            key=lambda x: x[1]['added'] - x[1]['deleted'],
+            key=lambda x: calc_score(x[1]),
             reverse=True
         )
 
         for rank, (author, stats) in enumerate(sorted_authors, 1):
             net = stats['added'] - stats['deleted']
+            score = calc_score(stats)
             medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else str(rank)
             # 显示具体仓库名（最多3个）
             repos_list = list(stats['repos'])[:3]
@@ -176,7 +180,7 @@ class WeeklyReporter(BaseReporter):
                 f"+{format_number(stats['added'])} | "
                 f"-{format_number(stats['deleted'])} | "
                 f"**{'+' if net >= 0 else ''}{format_number(net)}** | "
-                f"{repos_str} |"
+                f"{repos_str} | {score:.1f} |"
             )
 
         lines.append("")
