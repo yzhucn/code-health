@@ -108,6 +108,7 @@ class BaseNotifier(ABC):
             'overtime': '0',
             'late_night': '0',
             'weekend': '0',
+            'large_commits': '0',
             'top_developers': [],
         }
 
@@ -150,6 +151,11 @@ class BaseNotifier(ABC):
         match = re.search(r'周末提交 \| (\d+) 次', content)
         if match:
             data['weekend'] = match.group(1)
+
+        # 提取大提交次数
+        match = re.search(r'大提交 \(>500行\) \| (\d+) 次', content)
+        if match:
+            data['large_commits'] = match.group(1)
 
         # 提取 TOP 开发者信息 (从提交详情中)
         data['top_developers'] = self._extract_top_developers(content)
